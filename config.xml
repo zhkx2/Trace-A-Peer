@@ -4,4 +4,6 @@
   <description>Offline SMS-based location tracking app</description>
   <content src="index.html" />
   <access origin="https://localhost" />
+  <access origin="https://unpkg.com" />
+  <access origin="https://*.tile.openstreetmap.org" />
 </widget>
