@@ -1,0 +1,11 @@
+.DS_Store
+.idea/
+*.iml
+node_modules/
+platforms/
+plugins/
+.gradle/
+**/build/
+local.properties
+*.apk
+*.aab
