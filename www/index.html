@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trace-a-peer</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/tracking.css">
+</head>
+<body>
+  <main id="app-content">
+    <section id="view-tracking" class="view-panel tracking-view active" role="tabpanel" aria-labelledby="tab-tracking">
+      <header class="tracking-header">
+        <div>
+          <p class="eyebrow">TRACE / A PEER <span class="demo-tag">DEMO</span></p>
+          <h1>Field view</h1>
+        </div>
+        <div class="network-status is-checking" id="map-status" role="status" aria-live="polite">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span id="map-status-text">Checking map tiles</span>
+        </div>
+      </header>
+
+      <div class="tracking-stage">
+        <div id="map-panel" class="tracking-surface map-surface" aria-label="Online map with sample peer positions">
+          <div id="map" role="application" aria-label="Map showing demo peer positions"></div>
+          <div id="map-unavailable" class="map-unavailable" hidden>
+            <strong>Map unavailable</strong>
+            <span>Connect to the internet to load map tiles, or switch to Radar.</span>
+          </div>
+          <div class="map-caption"><span class="caption-marker" aria-hidden="true"></span> TERRAIN MAP <span>DEMO DATA</span></div>
+
+          <div class="map-fab-stack" aria-label="Map controls">
+            <button id="layers-button" class="map-control-fab" type="button" aria-label="Switch to street map" title="Switch map layer">
+              <span class="layers-icon" aria-hidden="true"><i></i><i></i><i></i></span>
+            </button>
+            <button id="center-map-button" class="map-control-fab" type="button" aria-label="Center map on you" title="Center on you">
+              <span class="center-map-icon" aria-hidden="true"></span>
+            </button>
+          </div>
+
+          <section class="map-bottom-sheet" aria-label="Selected target details">
+            <div class="target-heading">
+              <div class="target-avatar" id="target-avatar" aria-hidden="true">JK</div>
+              <div class="target-identity">
+                <h2 id="target-name">Joshua King</h2>
+                <p id="target-status" class="offline-badge">Offline</p>
+              </div>
+            </div>
+
+            <p class="target-last-location" id="target-last-location">Last location - 12:38 via SMS</p>
+
+            <div class="target-details-grid">
+              <div class="target-detail">
+                <span class="detail-label">LAT / LON</span>
+                <strong id="target-coordinates">37.74590 N<br>119.53320 W</strong>
+              </div>
+              <div class="target-detail">
+                <span class="detail-label">FROM YOU</span>
+                <strong id="target-distance">450 m<br>048 Northeast</strong>
+              </div>
+            </div>
+
+            <button id="refresh-sms-button" class="refresh-sms-button" type="button">Refresh via SMS</button>
+            <button id="open-radar-button" class="open-radar-button" type="button">Open offline radar <span aria-hidden="true">-&gt;</span></button>
+          </section>
+        </div>
+
+        <div id="radar-panel" class="tracking-surface radar-surface" hidden aria-label="Offline compass for selected target">
+          <header class="radar-header">
+            <div>
+              <p class="radar-kicker">OFFLINE RADAR</p>
+              <h2 id="radar-target-name">Joshua King</h2>
+            </div>
+            <button id="return-to-map-button" class="return-to-map-button" type="button">&lt;- Back to map</button>
+          </header>
+
+          <canvas id="radar-canvas" aria-label="Compass pointing 48 degrees toward Joshua King"></canvas>
+
+          <div class="radar-distance-block" aria-live="polite">
+            <strong id="radar-distance-value">450</strong>
+            <span>Meters Away</span>
+          </div>
+          <p class="radar-instruction">Keep your phone flat. Follow the arrow.</p>
+
+          <section class="telemetry-card" aria-label="Last received GPS telemetry">
+            <header class="telemetry-header">
+              <h3>Last SMS GPS fix</h3>
+              <span>4 min ago</span>
+            </header>
+            <div class="telemetry-coordinates">
+              <div><span>LAT</span><strong>37.74590 N</strong></div>
+              <div><span>LON</span><strong>119.53320 W</strong></div>
+            </div>
+            <footer class="telemetry-footer">
+              <span>Received at 12:38</span>
+              <span>Accuracy &plusmn;12 m</span>
+            </footer>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-peers" class="view-panel simple-view" role="tabpanel" aria-labelledby="tab-peers" hidden>
+      <p class="eyebrow">YOUR CIRCLE</p>
+      <h1>Peers</h1>
+      <p class="empty-state">No peers added yet.</p>
+    </section>
+
+    <section id="view-settings" class="view-panel simple-view" role="tabpanel" aria-labelledby="tab-settings" hidden>
+      <p class="eyebrow">PREFERENCES</p>
+      <h1>Settings</h1>
+      <p class="empty-state">Tracking and privacy controls will appear here.</p>
+    </section>
+  </main>
+
+  <nav class="bottom-nav" role="tablist" aria-label="Main navigation">
+    <button id="tab-tracking" class="nav-item active" type="button" role="tab" aria-selected="true" aria-controls="view-tracking" data-target="view-tracking">Tracking</button>
+    <button id="tab-peers" class="nav-item" type="button" role="tab" aria-selected="false" aria-controls="view-peers" data-target="view-peers">Peers</button>
+    <button id="tab-settings" class="nav-item" type="button" role="tab" aria-selected="false" aria-controls="view-settings" data-target="view-settings">Settings</button>
+  </nav>
+
+  <script src="cordova.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
+  <script src="js/app.js"></script>
+  <script src="js/tracking.js"></script>
+</body>
+</html>
