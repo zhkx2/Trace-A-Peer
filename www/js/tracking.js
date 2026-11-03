@@ -1,18 +1,40 @@
 (() => {
 	const mapElement = document.getElementById('map');
 	const mapPanel = document.getElementById('map-panel');
+	const layersButton = document.getElementById('layers-button');
+	const centerMapButton = document.getElementById('center-map-button');
 	const radarPanel = document.getElementById('radar-panel');
 	const canvas = document.getElementById('radar-canvas');
-	const modeToggle = document.getElementById('view-mode-toggle');
-	const modeLabel = document.getElementById('mode-button-label');
+	const radarTargetName = document.getElementById('radar-target-name');
+	const radarDistanceValue = document.getElementById('radar-distance-value');
+	const openRadarButton = document.getElementById('open-radar-button');
+	const returnToMapButton = document.getElementById('return-to-map-button');
+	const refreshSmsButton = document.getElementById('refresh-sms-button');
 	const mapStatus = document.getElementById('map-status');
 	const mapStatusText = document.getElementById('map-status-text');
 	const mapUnavailable = document.getElementById('map-unavailable');
 	const context = canvas && canvas.getContext('2d');
+	const mockUserPosition = [37.7431, -119.5370];
+	const selectedPeer = {
+		name: 'Joshua King',
+		initials: 'JK',
+		status: 'Offline',
+		coordinates: [37.74590, -119.53320],
+		latitude: '37.74590 N',
+		longitude: '119.53320 W',
+		distanceMeters: 450,
+	bearingDegrees: 48,
+		bearingLabel: '048 Northeast',
+		lastLocation: 'Last location - 12:38 via SMS',
+		lastSmsAge: '4 min ago',
+		receivedAt: 'Received at 12:38',
+		accuracyMeters: 12
+	};
 	let map;
 	let tileLayer;
 	let tileLoaded = false;
 	let currentMode = 'map';
+	let terrainEnabled = true;
 
 	function updateMapStatus(message, state) {
 		if (!mapStatus || !mapStatusText) {
@@ -36,19 +58,24 @@
 		map = window.L.map(mapElement, {
 			zoomControl: false,
 			scrollWheelZoom: false
-		}).setView([51.505, -0.09], 14);
+		}).setView(selectedPeer.coordinates, 14);
 
 		window.L.control.zoom({ position: 'bottomleft' }).addTo(map);
-		tileLayer = window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-			maxZoom: 19,
-			attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+		tileLayer = window.L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+			maxZoom: 17,
+			attribution: 'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, SRTM | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a>'
+		}).addTo(map);
+
+		window.L.polyline([mockUserPosition, selectedPeer.coordinates], {
+			color: '#e2934f',
+			weight: 3,
+			dashArray: '8 8',
+			opacity: 0.9
 		}).addTo(map);
 
 		const demoPeers = [
-			{ name: 'You · demo', coordinates: [51.505, -0.09], color: '#b5e66b', radius: 9 },
-			{ name: 'Mira · sample', coordinates: [51.510, -0.076], color: '#ed795e', radius: 7 },
-			{ name: 'Rafi · sample', coordinates: [51.498, -0.102], color: '#5e9da0', radius: 7 },
-			{ name: 'Sol · sample', coordinates: [51.509, -0.105], color: '#e8b34f', radius: 7 }
+			{ name: 'You · demo', coordinates: mockUserPosition, color: '#b5e66b', radius: 9 },
+			{ name: `${selectedPeer.name} · demo`, coordinates: selectedPeer.coordinates, color: '#e2934f', radius: 8 }
 		];
 
 		demoPeers.forEach((peer) => {
@@ -86,6 +113,19 @@
 		}
 	}
 
+	function updateMockTargetDetails() {
+		document.getElementById('target-avatar').textContent = selectedPeer.initials;
+		document.getElementById('target-name').textContent = selectedPeer.name;
+		document.getElementById('radar-target-name').textContent = selectedPeer.name;
+		document.getElementById('target-status').textContent = selectedPeer.status;
+		document.getElementById('target-last-location').textContent = selectedPeer.lastLocation;
+		document.getElementById('target-coordinates').textContent = `${selectedPeer.latitude}\n${selectedPeer.longitude}`;
+		document.getElementById('target-distance').textContent = `${selectedPeer.distanceMeters} m\n${selectedPeer.bearingLabel}`;
+		document.getElementById('radar-distance-value').textContent = String(selectedPeer.distanceMeters);
+		document.getElementById('radar-canvas').setAttribute('aria-label', `Compass pointing ${selectedPeer.bearingDegrees} degrees toward ${selectedPeer.name}`);
+		console.info('Loaded mock target telemetry.', selectedPeer);
+	}
+
 	function drawRadar() {
 		if (!canvas || !context || radarPanel.hidden) {
 			return;
@@ -105,68 +145,52 @@
 		const height = bounds.height;
 		const centerX = width / 2;
 		const centerY = height / 2;
-		const radius = Math.max(40, Math.min(width, height) * 0.39);
+		const radius = Math.min(width * 0.37, height * 0.38);
 
 		context.clearRect(0, 0, width, height);
 		context.fillStyle = '#101e37';
 		context.fillRect(0, 0, width, height);
 
-		const glow = context.createRadialGradient(centerX, centerY, 2, centerX, centerY, radius);
-		glow.addColorStop(0, 'rgba(86, 160, 137, 0.20)');
-		glow.addColorStop(1, 'rgba(20, 40, 39, 0)');
-		context.fillStyle = glow;
 		context.beginPath();
 		context.arc(centerX, centerY, radius, 0, Math.PI * 2);
-		context.fill();
-
-		context.strokeStyle = 'rgba(177, 219, 194, 0.24)';
+		context.strokeStyle = 'rgba(177, 196, 220, 0.28)';
 		context.lineWidth = 1;
-		[0.25, 0.5, 0.75, 1].forEach((scale) => {
-			context.beginPath();
-			context.arc(centerX, centerY, radius * scale, 0, Math.PI * 2);
-			context.stroke();
-		});
-
-		context.strokeStyle = 'rgba(177, 219, 194, 0.16)';
-		context.beginPath();
-		context.moveTo(centerX - radius, centerY);
-		context.lineTo(centerX + radius, centerY);
-		context.moveTo(centerX, centerY - radius);
-		context.lineTo(centerX, centerY + radius);
 		context.stroke();
 
-		context.font = '600 10px sans-serif';
-		context.fillStyle = 'rgba(208, 227, 211, 0.66)';
-		context.textAlign = 'center';
-		context.fillText('N', centerX, centerY - radius - 10);
-		context.fillText('E', centerX + radius + 12, centerY + 3);
-		context.fillText('S', centerX, centerY + radius + 15);
-		context.fillText('W', centerX - radius - 12, centerY + 3);
-
-		const peers = [
-			{ x: centerX + radius * 0.60, y: centerY - radius * 0.45, color: '#ed795e' },
-			{ x: centerX - radius * 0.58, y: centerY - radius * 0.27, color: '#5e9da0' },
-			{ x: centerX + radius * 0.26, y: centerY + radius * 0.68, color: '#e8b34f' }
-		];
-
-		peers.forEach((peer) => {
+		for (let degrees = 0; degrees < 360; degrees += 5) {
+			const angle = (degrees - 90) * Math.PI / 180;
+			const tickLength = degrees % 30 === 0 ? 14 : degrees % 10 === 0 ? 9 : 5;
+			const innerRadius = radius - tickLength;
 			context.beginPath();
-			context.arc(peer.x, peer.y, 5, 0, Math.PI * 2);
-			context.fillStyle = peer.color;
-			context.fill();
-			context.beginPath();
-			context.arc(peer.x, peer.y, 9, 0, Math.PI * 2);
-			context.strokeStyle = `${peer.color}88`;
+			context.moveTo(centerX + Math.cos(angle) * innerRadius, centerY + Math.sin(angle) * innerRadius);
+			context.lineTo(centerX + Math.cos(angle) * radius, centerY + Math.sin(angle) * radius);
+			context.strokeStyle = degrees % 30 === 0 ? '#a9bad4' : 'rgba(169, 186, 212, 0.52)';
+			context.lineWidth = degrees % 30 === 0 ? 2 : 1;
 			context.stroke();
+		}
+
+		context.font = '700 12px sans-serif';
+		context.fillStyle = '#dce6f4';
+		context.textAlign = 'center';
+		context.textBaseline = 'middle';
+		[
+			{ label: 'N', degrees: 0 },
+			{ label: 'E', degrees: 90 },
+			{ label: 'S', degrees: 180 },
+			{ label: 'W', degrees: 270 }
+		].forEach(({ label, degrees }) => {
+			const angle = (degrees - 90) * Math.PI / 180;
+			const labelRadius = radius + 16;
+			context.fillText(label, centerX + Math.cos(angle) * labelRadius, centerY + Math.sin(angle) * labelRadius);
 		});
 
-		const heading = -Math.PI / 2 + Math.PI / 4;
-		const arrowLength = radius * 0.58;
+		const heading = (selectedPeer.bearingDegrees - 90) * Math.PI / 180;
+		const arrowLength = radius * 0.62;
 		const tipX = centerX + Math.cos(heading) * arrowLength;
 		const tipY = centerY + Math.sin(heading) * arrowLength;
-		context.strokeStyle = '#b5e66b';
-		context.fillStyle = '#b5e66b';
-		context.lineWidth = 3;
+		context.strokeStyle = '#e2934f';
+		context.fillStyle = '#e2934f';
+		context.lineWidth = 16;
 		context.lineCap = 'round';
 		context.beginPath();
 		context.moveTo(centerX, centerY);
@@ -178,15 +202,15 @@
 		context.rotate(heading);
 		context.beginPath();
 		context.moveTo(0, 0);
-		context.lineTo(-8, -5);
-		context.lineTo(-8, 5);
+		context.lineTo(-32, -22);
+		context.lineTo(-32, 22);
 		context.closePath();
 		context.fill();
 		context.restore();
 
 		context.beginPath();
-		context.arc(centerX, centerY, 6, 0, Math.PI * 2);
-		context.fillStyle = '#f3f0e5';
+		context.arc(centerX, centerY, 7, 0, Math.PI * 2);
+		context.fillStyle = '#f1f4fa';
 		context.fill();
 	}
 
@@ -195,9 +219,6 @@
 		const showRadar = mode === 'radar';
 		mapPanel.hidden = showRadar;
 		radarPanel.hidden = !showRadar;
-		modeToggle.setAttribute('aria-pressed', String(showRadar));
-		modeToggle.setAttribute('aria-label', `Switch to ${showRadar ? 'map' : 'radar'} mode`);
-		modeLabel.textContent = showRadar ? 'Map mode' : 'Radar mode';
 
 		if (showRadar) {
 			requestAnimationFrame(drawRadar);
@@ -206,9 +227,48 @@
 		}
 	}
 
-	if (modeToggle && mapPanel && radarPanel) {
-		modeToggle.addEventListener('click', () => {
-			setMode(currentMode === 'map' ? 'radar' : 'map');
+	if (openRadarButton) {
+		openRadarButton.addEventListener('click', () => setMode('radar'));
+	}
+
+	if (returnToMapButton) {
+		returnToMapButton.addEventListener('click', () => setMode('map'));
+	}
+
+	if (centerMapButton) {
+		centerMapButton.addEventListener('click', () => {
+			if (!map) {
+				console.warn('Cannot recenter: the demo map is not available.');
+				return;
+			}
+
+			map.flyTo(mockUserPosition, Math.max(map.getZoom(), 15));
+			console.info('Centered map on the mock user location.', mockUserPosition);
+		});
+	}
+
+	if (layersButton) {
+		layersButton.addEventListener('click', () => {
+			if (!tileLayer) {
+				console.warn('Cannot change layers: the demo map is not available.');
+				return;
+			}
+
+			terrainEnabled = !terrainEnabled;
+			const url = terrainEnabled
+				? 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png'
+				: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+			tileLayer.setUrl(url);
+			const nextLayer = terrainEnabled ? 'street map' : 'terrain map';
+			layersButton.setAttribute('aria-label', `Switch to ${nextLayer}`);
+			layersButton.title = `Switch to ${nextLayer}`;
+			console.info(`Switched mock map layer to ${terrainEnabled ? 'terrain' : 'street'}.`);
+		});
+	}
+
+	if (refreshSmsButton) {
+		refreshSmsButton.addEventListener('click', () => {
+			console.info(`Mock SMS refresh requested for ${selectedPeer.name}.`);
 		});
 	}
 
@@ -244,4 +304,5 @@
 	}
 
 	initializeMap();
+	updateMockTargetDetails();
 })();

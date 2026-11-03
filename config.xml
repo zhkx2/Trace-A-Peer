@@ -6,4 +6,5 @@
   <access origin="https://localhost" />
   <access origin="https://unpkg.com" />
   <access origin="https://*.tile.openstreetmap.org" />
+  <access origin="https://*.tile.opentopomap.org" />
 </widget>

@@ -29,27 +29,76 @@
             <strong>Map unavailable</strong>
             <span>Connect to the internet to load map tiles, or switch to Radar.</span>
           </div>
-          <div class="map-caption"><span class="caption-marker" aria-hidden="true"></span> Sample positions · not live</div>
+          <div class="map-caption"><span class="caption-marker" aria-hidden="true"></span> TERRAIN MAP <span>DEMO DATA</span></div>
+
+          <div class="map-fab-stack" aria-label="Map controls">
+            <button id="layers-button" class="map-control-fab" type="button" aria-label="Switch to street map" title="Switch map layer">
+              <span class="layers-icon" aria-hidden="true"><i></i><i></i><i></i></span>
+            </button>
+            <button id="center-map-button" class="map-control-fab" type="button" aria-label="Center map on you" title="Center on you">
+              <span class="center-map-icon" aria-hidden="true"></span>
+            </button>
+          </div>
+
+          <section class="map-bottom-sheet" aria-label="Selected target details">
+            <div class="target-heading">
+              <div class="target-avatar" id="target-avatar" aria-hidden="true">JK</div>
+              <div class="target-identity">
+                <h2 id="target-name">Joshua King</h2>
+                <p id="target-status" class="offline-badge">Offline</p>
+              </div>
+            </div>
+
+            <p class="target-last-location" id="target-last-location">Last location - 12:38 via SMS</p>
+
+            <div class="target-details-grid">
+              <div class="target-detail">
+                <span class="detail-label">LAT / LON</span>
+                <strong id="target-coordinates">37.74590 N<br>119.53320 W</strong>
+              </div>
+              <div class="target-detail">
+                <span class="detail-label">FROM YOU</span>
+                <strong id="target-distance">450 m<br>048 Northeast</strong>
+              </div>
+            </div>
+
+            <button id="refresh-sms-button" class="refresh-sms-button" type="button">Refresh via SMS</button>
+            <button id="open-radar-button" class="open-radar-button" type="button">Open offline radar <span aria-hidden="true">-&gt;</span></button>
+          </section>
         </div>
 
-        <div id="radar-panel" class="tracking-surface radar-surface" hidden>
-          <canvas id="radar-canvas" aria-label="Offline radar with a simulated direction arrow and sample peers"></canvas>
-          <div class="radar-heading">
-            <span class="radar-kicker">LOCAL RADAR</span>
-            <span class="radar-state"><span aria-hidden="true"></span> OFFLINE READY</span>
-          </div>
-          <div class="radar-legend" aria-label="Sample radar contacts">
-            <span><i class="legend-dot dot-lime"></i>Mira <small>DEMO</small></span>
-            <span><i class="legend-dot dot-coral"></i>Rafi <small>DEMO</small></span>
-            <span><i class="legend-dot dot-blue"></i>Sol <small>DEMO</small></span>
-          </div>
-          <p class="radar-direction">SIMULATED HEADING <strong>NE · 045°</strong></p>
-        </div>
+        <div id="radar-panel" class="tracking-surface radar-surface" hidden aria-label="Offline compass for selected target">
+          <header class="radar-header">
+            <div>
+              <p class="radar-kicker">OFFLINE RADAR</p>
+              <h2 id="radar-target-name">Joshua King</h2>
+            </div>
+            <button id="return-to-map-button" class="return-to-map-button" type="button">&lt;- Back to map</button>
+          </header>
 
-        <button id="view-mode-toggle" class="mode-fab" type="button" aria-label="Switch to radar mode" aria-pressed="false">
-          <span class="fab-mark" aria-hidden="true"></span>
-          <span id="mode-button-label">Radar mode</span>
-        </button>
+          <canvas id="radar-canvas" aria-label="Compass pointing 48 degrees toward Joshua King"></canvas>
+
+          <div class="radar-distance-block" aria-live="polite">
+            <strong id="radar-distance-value">450</strong>
+            <span>Meters Away</span>
+          </div>
+          <p class="radar-instruction">Keep your phone flat. Follow the arrow.</p>
+
+          <section class="telemetry-card" aria-label="Last received GPS telemetry">
+            <header class="telemetry-header">
+              <h3>Last SMS GPS fix</h3>
+              <span>4 min ago</span>
+            </header>
+            <div class="telemetry-coordinates">
+              <div><span>LAT</span><strong>37.74590 N</strong></div>
+              <div><span>LON</span><strong>119.53320 W</strong></div>
+            </div>
+            <footer class="telemetry-footer">
+              <span>Received at 12:38</span>
+              <span>Accuracy &plusmn;12 m</span>
+            </footer>
+          </section>
+        </div>
       </div>
     </section>
 
