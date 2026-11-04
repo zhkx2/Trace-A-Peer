@@ -1,10 +1,17 @@
 <?xml version='1.0' encoding='utf-8'?>
-<widget id="com.example.traceapeer" version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0">
+<widget id="com.itcc41.traceapeer" version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0">
   <name>Trace-a-peer</name>
-  <description>Offline SMS-based location tracking app</description>
+  <description>An SMS-Based Peer-to-Peer Location Tracking Mobile Application</description>
+  <author email="admin@traceapeer.local" href="https://cordova.apache.org">ITCC41 Team</author>
   <content src="index.html" />
+  <access origin="*" />
   <access origin="https://localhost" />
   <access origin="https://unpkg.com" />
   <access origin="https://*.tile.openstreetmap.org" />
   <access origin="https://*.tile.opentopomap.org" />
+  <allow-intent href="http://*/*" />
+  <allow-intent href="https://*/*" />
+  <platform name="android">
+    <allow-intent href="market:*" />
+  </platform>
 </widget>

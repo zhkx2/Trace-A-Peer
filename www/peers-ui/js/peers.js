@@ -34,13 +34,20 @@
   function toast(t) { const e = $('#toast'); e.textContent = t; e.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => e.classList.remove('show'), 2400); }
 
   /* ---- Theme ---- */
-  function applyTheme(t) {
-    document.documentElement.setAttribute('data-theme', t);
-    $('#theme').textContent = t === 'dark' ? '☀️' : '🌙';
-    try { localStorage.setItem(TKEY, t); } catch (e) {}
-    try { if (window.StatusBar) { t === 'dark' ? StatusBar.styleLightContent() : StatusBar.styleDefault(); } } catch (e) {}
+  function applyTheme(t, persist = true) {
+    const theme = t === 'dark' ? 'dark' : 'light';
+    document.body.classList.toggle('dark-theme', theme === 'dark');
+    document.documentElement.setAttribute('data-theme', theme);
+    $('#theme').textContent = theme === 'dark' ? '☀️' : '🌙';
+    if (persist) { try { localStorage.setItem(TKEY, theme); } catch (e) {} }
+    try { if (window.StatusBar) { theme === 'dark' ? StatusBar.styleLightContent() : StatusBar.styleDefault(); } } catch (e) {}
   }
-  const currentTheme = () => { let t = null; try { t = localStorage.getItem(TKEY); } catch (e) {} return t || (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); };
+  const currentTheme = () => { try { return localStorage.getItem(TKEY) === 'dark' ? 'dark' : 'light'; } catch (e) { return 'light'; } };
+
+  window.addEventListener('message', event => {
+    if (event.source !== window.parent || event.origin !== window.location.origin || !event.data || event.data.type !== 'trace-a-peer:theme') return;
+    applyTheme(event.data.theme, false);
+  });
 
   /* ---- Filtering and sorting ---- */
   function visible() {

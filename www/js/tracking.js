@@ -32,9 +32,15 @@
 	};
 	let map;
 	let tileLayer;
+	let routeLine;
+	let demoMarkers = [];
 	let tileLoaded = false;
 	let currentMode = 'map';
 	let terrainEnabled = true;
+
+	function themeColor(name) {
+		return getComputedStyle(document.body).getPropertyValue(name).trim();
+	}
 
 	function updateMapStatus(message, state) {
 		if (!mapStatus || !mapStatusText) {
@@ -66,26 +72,27 @@
 			attribution: 'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, SRTM | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a>'
 		}).addTo(map);
 
-		window.L.polyline([mockUserPosition, selectedPeer.coordinates], {
-			color: '#e2934f',
+		routeLine = window.L.polyline([mockUserPosition, selectedPeer.coordinates], {
+			color: themeColor('--route-color'),
 			weight: 3,
 			dashArray: '8 8',
 			opacity: 0.9
 		}).addTo(map);
 
 		const demoPeers = [
-			{ name: 'You · demo', coordinates: mockUserPosition, color: '#b5e66b', radius: 9 },
-			{ name: `${selectedPeer.name} · demo`, coordinates: selectedPeer.coordinates, color: '#e2934f', radius: 8 }
+			{ name: 'You · demo', coordinates: mockUserPosition, color: themeColor('--you-marker-color'), radius: 9 },
+			{ name: `${selectedPeer.name} · demo`, coordinates: selectedPeer.coordinates, color: themeColor('--target-marker-color'), radius: 8 }
 		];
 
 		demoPeers.forEach((peer) => {
-			window.L.circleMarker(peer.coordinates, {
+			const marker = window.L.circleMarker(peer.coordinates, {
 				radius: peer.radius,
-				color: '#f8f6ec',
+				color: themeColor('--marker-outline'),
 				weight: 2,
 				fillColor: peer.color,
 				fillOpacity: 1
 			}).addTo(map).bindTooltip(peer.name, { direction: 'top', offset: [0, -8] });
+			demoMarkers.push(marker);
 		});
 
 		tileLayer.on('load', () => {
@@ -146,14 +153,20 @@
 		const centerX = width / 2;
 		const centerY = height / 2;
 		const radius = Math.min(width * 0.37, height * 0.38);
+		const radarBackground = themeColor('--radar-bg');
+		const radarGrid = themeColor('--radar-grid');
+		const radarStrongGrid = themeColor('--radar-grid-strong');
+		const radarLabel = themeColor('--radar-label');
+		const radarArrow = themeColor('--radar-arrow');
+		const radarCenter = themeColor('--radar-center');
 
 		context.clearRect(0, 0, width, height);
-		context.fillStyle = '#101e37';
+		context.fillStyle = radarBackground;
 		context.fillRect(0, 0, width, height);
 
 		context.beginPath();
 		context.arc(centerX, centerY, radius, 0, Math.PI * 2);
-		context.strokeStyle = 'rgba(177, 196, 220, 0.28)';
+		context.strokeStyle = radarGrid;
 		context.lineWidth = 1;
 		context.stroke();
 
@@ -164,13 +177,13 @@
 			context.beginPath();
 			context.moveTo(centerX + Math.cos(angle) * innerRadius, centerY + Math.sin(angle) * innerRadius);
 			context.lineTo(centerX + Math.cos(angle) * radius, centerY + Math.sin(angle) * radius);
-			context.strokeStyle = degrees % 30 === 0 ? '#a9bad4' : 'rgba(169, 186, 212, 0.52)';
+			context.strokeStyle = degrees % 30 === 0 ? radarStrongGrid : radarGrid;
 			context.lineWidth = degrees % 30 === 0 ? 2 : 1;
 			context.stroke();
 		}
 
 		context.font = '700 12px sans-serif';
-		context.fillStyle = '#dce6f4';
+		context.fillStyle = radarLabel;
 		context.textAlign = 'center';
 		context.textBaseline = 'middle';
 		[
@@ -188,8 +201,8 @@
 		const arrowLength = radius * 0.62;
 		const tipX = centerX + Math.cos(heading) * arrowLength;
 		const tipY = centerY + Math.sin(heading) * arrowLength;
-		context.strokeStyle = '#e2934f';
-		context.fillStyle = '#e2934f';
+		context.strokeStyle = radarArrow;
+		context.fillStyle = radarArrow;
 		context.lineWidth = 16;
 		context.lineCap = 'round';
 		context.beginPath();
@@ -210,7 +223,7 @@
 
 		context.beginPath();
 		context.arc(centerX, centerY, 7, 0, Math.PI * 2);
-		context.fillStyle = '#f1f4fa';
+		context.fillStyle = radarCenter;
 		context.fill();
 	}
 
@@ -273,6 +286,20 @@
 	}
 
 	window.addEventListener('resize', drawRadar);
+	document.addEventListener('app:themechange', () => {
+		if (routeLine) {
+			routeLine.setStyle({ color: themeColor('--route-color') });
+		}
+		demoMarkers.forEach((marker, index) => {
+			marker.setStyle({
+				color: themeColor('--marker-outline'),
+				fillColor: themeColor(index === 0 ? '--you-marker-color' : '--target-marker-color')
+			});
+		});
+		if (currentMode === 'radar') {
+			requestAnimationFrame(drawRadar);
+		}
+	});
 	window.addEventListener('offline', () => {
 		tileLoaded = false;
 		updateMapStatus('Offline · switch to Radar', 'is-offline');
