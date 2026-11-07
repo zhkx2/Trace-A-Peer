@@ -36,17 +36,32 @@
 <div class="overlay" id="addSheet">
   <div class="sheet" role="dialog" aria-label="Add peer">
     <div class="grab"></div>
-    <h2>Add a peer</h2>
-    <p class="hint">They must accept the SMS handshake before you can see their location.</p>
-    <button class="btn" id="import" type="button">Import from contacts</button>
+    <h2 id="addTitle">Add a peer</h2>
+    <p class="hint add-only">They must accept the SMS handshake and enter your one-time code before you can see their location.</p>
+    <button class="btn add-only" id="import" type="button">Import from contacts</button>
     <label for="phone">Phone number</label>
     <input id="phone" type="tel" inputmode="tel" placeholder="09XX XXX XXXX or +639XXXXXXXXX" autocomplete="off">
     <div class="err" id="phoneErr"></div>
     <label for="nick">Nickname</label>
     <input id="nick" maxlength="20" placeholder="e.g. Trail buddy Jun" autocomplete="off">
     <div class="err" id="nickErr"></div>
-    <label class="switch-row"><span>Allow this peer to request my location</span><input type="checkbox" id="allow" checked></label>
+    <label class="add-only" for="me">Your name (shown in the request)</label>
+    <input class="add-only" id="me" maxlength="20" placeholder="e.g. Josh" autocomplete="off">
+    <div class="err add-only" id="meErr"></div>
+    <label class="switch-row add-only"><span>Allow this peer to request my location</span><input type="checkbox" id="allow" checked></label>
     <div class="btns"><button class="btn" id="cancel" type="button">Cancel</button><button class="btn primary" id="send" type="button">Send Handshake Request</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="consent">
+  <div class="sheet" role="dialog" aria-label="Location request">
+    <div class="grab"></div>
+    <h2 id="coTitle">Location request</h2>
+    <p class="hint" id="coBody"></p>
+    <label for="coCode">6-digit code from the requester</label>
+    <input class="codein" id="coCode" inputmode="numeric" maxlength="6" placeholder="000000" autocomplete="off">
+    <div class="err" id="coErr"></div>
+    <div class="btns"><button class="btn del" id="coNo" type="button">Decline</button><button class="btn primary" id="coAllow" type="button">Allow Tracking</button></div>
   </div>
 </div>
 
@@ -60,6 +75,8 @@
 <div id="toast" role="status"></div>
 
 <script src="cordova.js"></script>
+<script src="js/db.js"></script>
+<script src="js/handshake.js"></script>
 <script src="js/peers.js"></script>
 </body>
 </html>

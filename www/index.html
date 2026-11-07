@@ -4,24 +4,311 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Trace-a-peer</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous">
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/tracking.css">
+  <link rel="stylesheet" href="css/settings.css">
 </head>
 <body>
-  <!-- Main View Container -->
   <main id="app-content">
-    <section id="view-tracking" class="view-panel active"><!-- Achilles' Work --></section>
-    <section id="view-peers" class="view-panel hidden"><!-- Joshua's Work --></section>
-    <section id="view-settings" class="view-panel hidden"><!-- Dwayne's Work --></section>
+    <section id="view-tracking" class="view-panel tracking-view active" role="tabpanel" aria-labelledby="tab-tracking">
+      <header class="tracking-header">
+        <div>
+          <p class="eyebrow">TRACE / A PEER <span class="demo-tag">DEMO</span></p>
+          <h1>Field view</h1>
+        </div>
+        <div class="network-status is-checking" id="map-status" role="status" aria-live="polite">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span id="map-status-text">Checking map tiles</span>
+        </div>
+      </header>
+
+      <div class="tracking-stage">
+        <div id="map-panel" class="tracking-surface map-surface" aria-label="Online map with sample peer positions">
+          <div id="map" role="application" aria-label="Map showing demo peer positions"></div>
+          <div id="map-unavailable" class="map-unavailable" hidden>
+            <strong>Map unavailable</strong>
+            <span>Connect to the internet to load map tiles, or switch to Radar.</span>
+          </div>
+          <div class="map-caption"><span class="caption-marker" aria-hidden="true"></span> TERRAIN MAP <span>DEMO DATA</span></div>
+
+          <div class="map-fab-stack" aria-label="Map controls">
+            <button id="layers-button" class="map-control-fab" type="button" aria-label="Switch to street map" title="Switch map layer">
+              <span class="layers-icon" aria-hidden="true"><i></i><i></i><i></i></span>
+            </button>
+            <button id="center-map-button" class="map-control-fab" type="button" aria-label="Center map on you" title="Center on you">
+              <span class="center-map-icon" aria-hidden="true"></span>
+            </button>
+          </div>
+
+          <section class="map-bottom-sheet" aria-label="Selected target details">
+            <div class="target-heading">
+              <div class="target-avatar" id="target-avatar" aria-hidden="true">JK</div>
+              <div class="target-identity">
+                <h2 id="target-name">Joshua King</h2>
+                <p id="target-status" class="offline-badge">Offline</p>
+              </div>
+            </div>
+
+            <p class="target-last-location" id="target-last-location">Last location - 12:38 via SMS</p>
+
+            <div class="target-details-grid">
+              <div class="target-detail">
+                <span class="detail-label">LAT / LON</span>
+                <strong id="target-coordinates">37.74590 N<br>119.53320 W</strong>
+              </div>
+              <div class="target-detail">
+                <span class="detail-label">FROM YOU</span>
+                <strong id="target-distance">450 m<br>048 Northeast</strong>
+              </div>
+            </div>
+
+            <button id="refresh-sms-button" class="refresh-sms-button" type="button">Refresh via SMS</button>
+            <button id="open-radar-button" class="open-radar-button" type="button">Open offline radar <span aria-hidden="true">-&gt;</span></button>
+          </section>
+        </div>
+
+        <div id="radar-panel" class="tracking-surface radar-surface" hidden aria-label="Offline compass for selected target">
+          <header class="radar-header">
+            <div>
+              <p class="radar-kicker">OFFLINE RADAR</p>
+              <h2 id="radar-target-name">Joshua King</h2>
+            </div>
+            <button id="return-to-map-button" class="return-to-map-button" type="button">&lt;- Back to map</button>
+          </header>
+
+          <canvas id="radar-canvas" aria-label="Compass pointing 48 degrees toward Joshua King"></canvas>
+
+          <div class="radar-distance-block" aria-live="polite">
+            <strong id="radar-distance-value">450</strong>
+            <span>Meters Away</span>
+          </div>
+          <p class="radar-instruction">Keep your phone flat. Follow the arrow.</p>
+
+          <section class="telemetry-card" aria-label="Last received GPS telemetry">
+            <header class="telemetry-header">
+              <h3>Last SMS GPS fix</h3>
+              <span>4 min ago</span>
+            </header>
+            <div class="telemetry-coordinates">
+              <div><span>LAT</span><strong>37.74590 N</strong></div>
+              <div><span>LON</span><strong>119.53320 W</strong></div>
+            </div>
+            <footer class="telemetry-footer">
+              <span>Received at 12:38</span>
+              <span>Accuracy &plusmn;12 m</span>
+            </footer>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-peers" class="view-panel peer-view" role="tabpanel" aria-labelledby="tab-peers" hidden>
+      <iframe class="peer-view-frame" src="peers-ui/index.html" title="Peer management"></iframe>
+    </section>
+
+    <section id="view-settings" class="view-panel settings-view" role="tabpanel" aria-labelledby="tab-settings" hidden>
+      <div class="app-container">
+        <header class="app-header">
+          <span class="header-icon" aria-hidden="true">&larr;</span>
+          <h1>Permissions &amp; settings</h1>
+          <span class="header-icon" aria-hidden="true">?</span>
+        </header>
+
+        <div class="content-body">
+          <div class="alert-banner alert-warning">
+            <span aria-hidden="true">&#9888;</span>
+            <div>Warning: Battery Optimization must be disabled for background tracking.</div>
+          </div>
+
+          <div class="alert-banner alert-success">
+            <span aria-hidden="true">&#x1F6E1;</span>
+            <div><strong>Ready for the trail</strong><br>Essential permissions are enabled.</div>
+          </div>
+
+          <div class="section-title">ESSENTIAL PERMISSIONS</div>
+          <div class="settings-card">
+            <div class="setting-item">
+              <div class="setting-info">
+                <span class="setting-icon" aria-hidden="true">&#128172;</span>
+                <div class="setting-text">
+                  <h3>Background SMS Enabled</h3>
+                  <p>Send and receive location requests when the app is closed.</p>
+                </div>
+              </div>
+              <label class="switch">
+                <input type="checkbox" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            <div class="setting-item">
+              <div class="setting-info">
+                <span class="setting-icon" aria-hidden="true">&#128205;</span>
+                <div class="setting-text">
+                  <h3>GPS Location Services</h3>
+                  <p>Use precise location for reliable peer distance and bearing.</p>
+                </div>
+              </div>
+              <label class="switch">
+                <input type="checkbox" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            <div class="setting-item">
+              <div class="setting-info">
+                <span class="setting-icon" aria-hidden="true">&#128276;</span>
+                <div class="setting-text">
+                  <h3>Request notifications</h3>
+                  <p>Get alerted when a peer asks for your location.</p>
+                </div>
+              </div>
+              <label class="switch">
+                <input type="checkbox" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="section-title">FIELD PREFERENCES</div>
+          <div class="settings-card">
+            <div class="setting-item">
+              <div class="setting-info">
+                <span class="setting-icon" aria-hidden="true">&#9681;</span>
+                <div class="setting-text">
+                  <h3>Appearance</h3>
+                  <p>Use a light or dark display theme.</p>
+                </div>
+              </div>
+              <label class="switch">
+                <input id="theme-toggle" type="checkbox" role="switch" aria-label="Dark theme">
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            <div class="setting-item">
+              <div class="setting-info">
+                <span class="setting-icon" aria-hidden="true">&#9201;</span>
+                <div class="setting-text">
+                  <h3>Telemetry interval</h3>
+                  <p>Frequency of background location sync.</p>
+                </div>
+              </div>
+              <select class="setting-dropdown" id="intervalSelect" aria-label="Telemetry interval">
+                <option value="5">Every 5 mins</option>
+                <option value="15" selected>Every 15 mins</option>
+                <option value="30">Every 30 mins</option>
+                <option value="60">Hourly</option>
+              </select>
+            </div>
+
+            <div class="setting-item">
+              <div class="setting-info">
+                <span class="setting-icon" aria-hidden="true">&#128267;</span>
+                <div class="setting-text">
+                  <h3>Battery saver</h3>
+                  <p>Reduce GPS updates. Location fixes may take longer.</p>
+                </div>
+              </div>
+              <label class="switch">
+                <input type="checkbox">
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            <div class="setting-item">
+              <div class="setting-info">
+                <span class="setting-icon" aria-hidden="true">&#128290;</span>
+                <div class="setting-text"><h3>Distance units</h3></div>
+              </div>
+              <span class="distance-unit-setting">Metric <span aria-hidden="true">&#8250;</span></span>
+            </div>
+          </div>
+
+          <div class="section-title">DATA &amp; STORAGE</div>
+          <div class="settings-card">
+            <button class="setting-item setting-action" id="clear-logs-button" type="button">
+              <span class="setting-info">
+                <span class="setting-icon" aria-hidden="true">&#128465;</span>
+                <span class="setting-text">
+                  <strong>Clear local SQLite logs</strong>
+                  <span>Wipe cached peer history and telemetry records.</span>
+                </span>
+              </span>
+              <span class="setting-action-label">Clear</span>
+            </button>
+          </div>
+
+          <div class="section-title">SYSTEM INFO</div>
+          <div class="settings-card">
+            <div class="setting-item">
+              <div class="setting-info">
+                <span class="setting-icon" aria-hidden="true">&#9432;</span>
+                <div class="setting-text">
+                  <h3>Trace-a-peer Version</h3>
+                  <p>v1.0.0-beta (Capstone Build)</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="alert-banner alert-warning settings-notice">
+            <span aria-hidden="true">&#9888;</span>
+            <div><strong>SMS still needs cellular coverage</strong><br>Trace-a-peer is not a rescue service. In an emergency, contact local emergency services.</div>
+          </div>
+
+          <button class="footer-link-btn" id="battery-guide-button" type="button">
+            <span>View Battery Optimization Guide</span><span aria-hidden="true">&#8599;</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="modal-overlay" id="batteryModal" role="dialog" aria-modal="true" aria-labelledby="battery-modal-title">
+        <div class="modal-card">
+          <h2 id="battery-modal-title">Unrestricted Battery Guide</h2>
+          <p>To ensure background telemetry and emergency SMS signaling work reliably when your screen is locked:</p>
+          <ol class="battery-guide-steps">
+            <li>Go to Android <strong>Settings &gt; Apps &gt; Trace-a-peer</strong>.</li>
+            <li>Tap <strong>Battery</strong>.</li>
+            <li>Select <strong>Unrestricted</strong>.</li>
+          </ol>
+          <button class="modal-btn" id="close-battery-modal-button" type="button">Got it</button>
+        </div>
+      </div>
+    </section>
   </main>
 
-  <!-- Bottom Navigation -->
-  <nav class="bottom-nav">
-    <button class="nav-item active" data-target="view-tracking">Radar</button>
-    <button class="nav-item" data-target="view-peers">Peers</button>
-    <button class="nav-item" data-target="view-settings">Settings</button>
+  <nav class="bottom-nav" role="tablist" aria-label="Main navigation">
+    <button id="tab-tracking" class="nav-item active" type="button" role="tab" aria-selected="true" aria-controls="view-tracking" data-target="view-tracking">Tracking</button>
+    <button id="tab-peers" class="nav-item" type="button" role="tab" aria-selected="false" aria-controls="view-peers" data-target="view-peers">Peers</button>
+    <button id="tab-settings" class="nav-item" type="button" role="tab" aria-selected="false" aria-controls="view-settings" data-target="view-settings">Settings</button>
   </nav>
 
-  <script src="../cordova.js"></script>
+  <script src="cordova.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
   <script src="js/app.js"></script>
+  <script src="js/tracking.js"></script>
+  <script>
+    document.getElementById('battery-guide-button').addEventListener('click', () => {
+      document.getElementById('batteryModal').style.display = 'flex';
+    });
+
+    document.getElementById('close-battery-modal-button').addEventListener('click', () => {
+      document.getElementById('batteryModal').style.display = 'none';
+    });
+
+    document.getElementById('batteryModal').addEventListener('click', (event) => {
+      if (event.target.id === 'batteryModal') {
+        event.currentTarget.style.display = 'none';
+      }
+    });
+
+    document.getElementById('clear-logs-button').addEventListener('click', () => {
+      if (window.confirm('Are you sure you want to wipe all local SQLite telemetry logs?')) {
+        window.alert('Local SQLite logs cleared successfully.');
+      }
+    });
+  </script>
 </body>
 </html>
