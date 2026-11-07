@@ -12,29 +12,116 @@ function onDeviceReady() {
 }
 
 // 1. Native Android Permission Prompt Flow
-function requestNativePermissions() {
-    if (!window.cordova || !window.cordova.plugins || !window.cordova.plugins.permissions) {
-        console.log('Permissions plugin not available in web preview.');
-        return;
+var permissionFlowStarted = false;
+var permissionState = {
+    location: false,
+    notifications: false,
+    backgroundLocation: false,
+    sms: false
+};
+
+function checkPermission(plugin, permission) {
+    return new Promise(function(resolve) {
+        plugin.checkPermission(permission, function(status) {
+            resolve(!!(status && status.hasPermission));
+        }, function() {
+            resolve(false);
+        });
+    });
+}
+
+function requestPermissions(plugin, list) {
+    return new Promise(function(resolve) {
+        plugin.requestPermissions(list, function() {
+            resolve();
+        }, function() {
+            console.error('Error requesting permissions:', list);
+            resolve();
+        });
+    });
+}
+
+// Resolves true only if every permission in `required` is granted after (optionally) prompting.
+function ensurePermissions(plugin, required, requestList) {
+    function checkAll() {
+        return Promise.all(required.map(function(permission) {
+            return checkPermission(plugin, permission);
+        })).then(function(results) {
+            return results.every(Boolean);
+        });
     }
 
-    var permissions = window.cordova.plugins.permissions;
-    var list = [
-        permissions.SEND_SMS,
-        permissions.RECEIVE_SMS,
-        permissions.READ_SMS,
-        permissions.ACCESS_FINE_LOCATION,
-        permissions.ACCESS_BACKGROUND_LOCATION
-    ];
-
-    permissions.requestPermissions(list, function(status) {
-        if (status.hasPermission) {
-            console.log("All essential runtime permissions granted.");
-        } else {
-            console.warn("Permissions denied by user.");
+    return checkAll().then(function(granted) {
+        if (granted) {
+            return true;
         }
-    }, function() {
-        console.error("Error requesting permissions.");
+        return requestPermissions(plugin, requestList || required).then(checkAll);
+    });
+}
+
+// Lets other modules (e.g. the foreground service in tracking.js) react to granted permissions.
+function announcePermissions() {
+    document.dispatchEvent(new CustomEvent('app:permissions', {
+        detail: {
+            location: permissionState.location,
+            notifications: permissionState.notifications,
+            backgroundLocation: permissionState.backgroundLocation,
+            sms: permissionState.sms
+        }
+    }));
+}
+
+function requestNativePermissions() {
+    var permissions = window.cordova && window.cordova.plugins && window.cordova.plugins.permissions;
+    if (!permissions) {
+        console.log('Permissions plugin not available in web preview.');
+        return Promise.resolve(permissionState);
+    }
+
+    if (permissionFlowStarted) {
+        return Promise.resolve(permissionState);
+    }
+    permissionFlowStarted = true;
+
+    // Step 1: precise location. Android 12+ requires FINE and COARSE to be requested together.
+    return ensurePermissions(
+        permissions,
+        [permissions.ACCESS_FINE_LOCATION],
+        [permissions.ACCESS_FINE_LOCATION, permissions.ACCESS_COARSE_LOCATION]
+    ).then(function(granted) {
+        permissionState.location = granted;
+        console.log(granted ? 'Foreground location granted.' : 'Foreground location denied.');
+
+        // Step 2: notifications, so the foreground service notification is visible (Android 13+).
+        return ensurePermissions(permissions, [permissions.POST_NOTIFICATIONS]);
+    }).then(function(granted) {
+        permissionState.notifications = granted;
+        announcePermissions();
+
+        // Step 3: background location, requested on its own and only after foreground location was approved.
+        if (!permissionState.location) {
+            console.warn('Skipping background location: foreground location was not granted.');
+            return false;
+        }
+        return ensurePermissions(permissions, [permissions.ACCESS_BACKGROUND_LOCATION]);
+    }).then(function(granted) {
+        permissionState.backgroundLocation = granted;
+        console.log(granted ? 'Background location granted.' : 'Background location not granted.');
+
+        // Step 4: SMS.
+        return ensurePermissions(permissions, [
+            permissions.SEND_SMS,
+            permissions.RECEIVE_SMS,
+            permissions.READ_SMS
+        ]);
+    }).then(function(granted) {
+        permissionState.sms = granted;
+        console.log(granted ? 'SMS permissions granted.' : 'SMS permissions denied.');
+        announcePermissions();
+        return permissionState;
+    }).catch(function(error) {
+        console.error('Permission flow failed.', error);
+        return permissionState;
     });
 }
 

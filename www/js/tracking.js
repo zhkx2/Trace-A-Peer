@@ -466,23 +466,114 @@ function sendLocationSMS(phone) {
 	}
 
 	// Incoming SMS comes from `cordova-plugin-sms-receive` (cordova-sms-plugin can only send).
+	// The plugin is registered exactly once here; other modules (e.g. the peers iframe) subscribe via window.TraceSms.
+	const smsSubscribers = new Set();
+	let smsDispatcherBound = false;
+	let smsWatching = false;
+
+	function subscribeToSms(handler) {
+		smsSubscribers.add(handler);
+		return () => smsSubscribers.delete(handler);
+	}
+
+	function dispatchIncomingSms(event) {
+		const message = event.data || event;
+		smsSubscribers.forEach((handler) => {
+			try {
+				handler({ address: message.address, body: message.body });
+			} catch (error) {
+				console.error('SMS subscriber failed.', error);
+			}
+		});
+	}
+
 	function startSmsListener() {
+		if (smsWatching) {
+			return;
+		}
+
 		const receiver = window.cordova && window.cordova.plugins && window.cordova.plugins.SMSReceive;
 		if (!receiver || typeof receiver.startWatch !== 'function') {
 			console.warn('SMS receive plugin (cordova-plugin-sms-receive) is not installed; incoming SMS will not be intercepted.');
 			return;
 		}
 
-		document.addEventListener('onSMSArrive', (event) => {
-			const message = event.data || event;
-			handleIncomingSms({ address: message.address, body: message.body });
-		});
+		if (!smsDispatcherBound) {
+			document.addEventListener('onSMSArrive', dispatchIncomingSms, false);
+			smsDispatcherBound = true;
+		}
 
+		smsWatching = true;
 		receiver.startWatch(
 			() => console.info('Listening for incoming SMS.'),
-			(error) => console.error('Unable to start the SMS listener.', error)
+			(error) => {
+				smsWatching = false;
+				console.error('Unable to start the SMS listener.', error);
+			}
 		);
 	}
+
+	// --- Foreground service -------------------------------------------------
+
+	const FOREGROUND_NOTIFICATION = {
+		title: 'Trace-A-Peer',
+		text: 'Location tracking is active',
+		icon: '',
+		importance: '1',
+		id: ''
+	};
+	let foregroundStarted = false;
+
+	// Android 14+ throws a SecurityException if a location-type service starts before location is granted,
+	// so the service only starts after ACCESS_FINE_LOCATION is confirmed.
+	function startForegroundService() {
+		if (foregroundStarted) {
+			return;
+		}
+
+		const plugins = (window.cordova && window.cordova.plugins) || {};
+		const service = plugins.foregroundService;
+		const permissions = plugins.permissions;
+		if (!service || !permissions) {
+			console.warn('Foreground service or permissions plugin unavailable; skipping foreground service.');
+			return;
+		}
+
+		permissions.checkPermission(permissions.ACCESS_FINE_LOCATION, (status) => {
+			if (!status || !status.hasPermission) {
+				console.info('Foreground service waiting for location permission.');
+				return;
+			}
+			if (foregroundStarted) {
+				return;
+			}
+
+			foregroundStarted = true;
+			service.start(
+				FOREGROUND_NOTIFICATION.title,
+				FOREGROUND_NOTIFICATION.text,
+				FOREGROUND_NOTIFICATION.icon,
+				FOREGROUND_NOTIFICATION.importance,
+				FOREGROUND_NOTIFICATION.id
+			);
+			console.info('Foreground service started.');
+		}, (error) => console.error('Unable to check location permission.', error));
+	}
+
+	function stopForegroundService() {
+		const service = window.cordova && window.cordova.plugins && window.cordova.plugins.foregroundService;
+		if (service && foregroundStarted) {
+			service.stop();
+			foregroundStarted = false;
+		}
+	}
+
+	// settings.js announces when the permission flow progresses.
+	document.addEventListener('app:permissions', (event) => {
+		if (event.detail && event.detail.location) {
+			startForegroundService();
+		}
+	});
 
 	// --- Leaflet map binding ----------------------------------------------
 
@@ -549,6 +640,9 @@ function sendLocationSMS(phone) {
 		}
 	}
 
+	window.TraceSms = { subscribe: subscribeToSms };
+	subscribeToSms(handleIncomingSms);
+
 	window.TraceTracking = {
 		getLocation,
 		getHeading,
@@ -557,11 +651,14 @@ function sendLocationSMS(phone) {
 		calculateDistance,
 		calculateBearing,
 		updateMap,
+		startForegroundService,
+		stopForegroundService,
 		testPing
 	};
 
 	document.addEventListener('deviceready', () => {
 		startSmsListener();
+		startForegroundService();
 		console.info('Trace-A-Peer hardware APIs ready. Run TraceTracking.testPing() to test.');
 	}, false);
 

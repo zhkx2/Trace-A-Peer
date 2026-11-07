@@ -19,7 +19,7 @@ const Handshake = (() => {
   const msg = (type, id, extra) => ['TAP1', type, id].concat(extra === undefined ? [] : [extra]).join('|');
 
   function send(phone, body) { // needs cordova-sms-plugin
-    const s = window.sms;
+    const s = host().sms;
     if (!s) { console.log('[no SMS plugin] to', phone, ':', body); return Promise.resolve(false); }
     return new Promise((ok, no) => {
       const go = () => s.send(String(phone).replace(/\s/g, ''), body, { android: { intent: '' } }, () => ok(true), e => no(e));
@@ -69,11 +69,24 @@ const Handshake = (() => {
     return true;
   }
 
-  function listen() { // needs cordova-plugin-sms-receive
-    const r = window.cordova && cordova.plugins && cordova.plugins.SMSReceive;
+  // The peers page runs in an iframe of the main page. Native plugin callbacks only reach the top window,
+  // so SMS send and receive go through the parent when it is available.
+  function host() {
+    try { if (window.parent && window.parent !== window && window.parent.cordova) return window.parent; } catch (e) {}
+    return window;
+  }
+
+  let listening = false;
+  function listen() { // needs cordova-plugin-sms-receive, registered once by the host page (tracking.js)
+    if (listening) return true;
+    const h = host();
+    if (h.TraceSms) { h.TraceSms.subscribe(m => handle(m.address, m.body)); listening = true; return true; }
+    // Standalone fallback (peers page opened on its own): no shared SMS hub exists, so register directly.
+    const r = h.cordova && h.cordova.plugins && h.cordova.plugins.SMSReceive;
     if (!r) return false;
-    document.addEventListener('onSMSArrive', e => { const m = e.data || e; handle(m.address, m.body); });
+    h.document.addEventListener('onSMSArrive', e => { const m = e.data || e; handle(m.address, m.body); });
     r.startWatch(() => {}, err => console.warn('SMS watch:', err));
+    listening = true;
     return true;
   }
   return { init: c => { ctx = c; return listen(); }, start, accept, decline, handle, MAX_TRIES };
