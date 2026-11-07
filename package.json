@@ -5,7 +5,8 @@
   "description": "Offline SMS-based location tracking app",
   "devDependencies": {
     "cordova": "13.0.0",
-    "cordova-android": "15.1.0",
+    "cordova-android": "^15.1.0",
+    "cordova-browser": "7.0.0",
     "cordova-plugin-device-orientation": "3.0.0",
     "cordova-plugin-geolocation": "5.0.0",
     "cordova-sms-plugin": "1.0.5",
@@ -13,6 +14,7 @@
   },
   "cordova": {
     "platforms": [
+      "browser",
       "android"
     ],
     "plugins": {
