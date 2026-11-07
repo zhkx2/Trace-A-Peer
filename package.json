@@ -13,17 +13,21 @@
     "cordova-sqlite-storage": "7.0.0"
   },
   "cordova": {
-"platforms": [
-  "browser",
-  "android"
-],
+    "platforms": [
+      "browser",
+      "android"
+    ],
     "plugins": {
       "cordova-plugin-device-orientation": {},
       "cordova-plugin-geolocation": {
         "GPS_REQUIRED": "true"
       },
       "cordova-sms-plugin": {},
-      "cordova-sqlite-storage": {}
+      "cordova-sqlite-storage": {},
+      "cordova-plugin-sms": {}
     }
+  },
+  "dependencies": {
+    "cordova-plugin-sms": "1.0.5"
   }
 }

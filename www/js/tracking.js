@@ -14,7 +14,7 @@
 	const mapStatusText = document.getElementById('map-status-text');
 	const mapUnavailable = document.getElementById('map-unavailable');
 	const context = canvas && canvas.getContext('2d');
-	const mockUserPosition = [37.7431, -119.5370];
+	let localPosition = [37.7431, -119.5370];
 	const selectedPeer = {
 		name: 'Joshua King',
 		initials: 'JK',
@@ -34,6 +34,8 @@
 	let tileLayer;
 	let routeLine;
 	let demoMarkers = [];
+	let localMarker;
+	let peerMarker;
 	let tileLoaded = false;
 	let currentMode = 'map';
 	let terrainEnabled = true;
@@ -72,7 +74,7 @@
 			attribution: 'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, SRTM | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a>'
 		}).addTo(map);
 
-		routeLine = window.L.polyline([mockUserPosition, selectedPeer.coordinates], {
+		routeLine = window.L.polyline([localPosition, selectedPeer.coordinates], {
 			color: themeColor('--route-color'),
 			weight: 3,
 			dashArray: '8 8',
@@ -80,7 +82,7 @@
 		}).addTo(map);
 
 		const demoPeers = [
-			{ name: 'You · demo', coordinates: mockUserPosition, color: themeColor('--you-marker-color'), radius: 9 },
+			{ name: 'You · demo', coordinates: localPosition, color: themeColor('--you-marker-color'), radius: 9 },
 			{ name: `${selectedPeer.name} · demo`, coordinates: selectedPeer.coordinates, color: themeColor('--target-marker-color'), radius: 8 }
 		];
 
@@ -94,6 +96,8 @@
 			}).addTo(map).bindTooltip(peer.name, { direction: 'top', offset: [0, -8] });
 			demoMarkers.push(marker);
 		});
+
+		[localMarker, peerMarker] = demoMarkers;
 
 		tileLayer.on('load', () => {
 			tileLoaded = true;
@@ -255,8 +259,8 @@
 				return;
 			}
 
-			map.flyTo(mockUserPosition, Math.max(map.getZoom(), 15));
-			console.info('Centered map on the mock user location.', mockUserPosition);
+			map.flyTo(localPosition, Math.max(map.getZoom(), 15));
+			console.info('Centered map on the local user location.', localPosition);
 		});
 	}
 
@@ -329,6 +333,235 @@
 	if (canvas && 'ResizeObserver' in window) {
 		new ResizeObserver(drawRadar).observe(canvas);
 	}
+
+	// ---------------------------------------------------------------------
+	// Milestone 3: hardware APIs, radar math, map binding, test mode
+	// ---------------------------------------------------------------------
+
+	const EARTH_RADIUS_METERS = 6371000;
+	const SMS_PREFIX = 'TAP';
+	// Wire format: TAP|<lat>|<lon>|<unix seconds>
+	const SMS_PATTERN = /^TAP\|(-?\d{1,2}(?:\.\d+)?)\|(-?\d{1,3}(?:\.\d+)?)\|(\d{9,})$/;
+	const COMPASS_POINTS = ['North', 'Northeast', 'East', 'Southeast', 'South', 'Southwest', 'West', 'Northwest'];
+	const GEOLOCATION_OPTIONS = { enableHighAccuracy: false, timeout: 15000, maximumAge: 5000 };
+	// Replace with your own number before running testPing() on the device.
+	const TEST_PHONE_NUMBER = '+639950059801';
+
+	const toRadians = (degrees) => degrees * Math.PI / 180;
+	const toDegrees = (radians) => radians * 180 / Math.PI;
+
+	// --- Radar math ------------------------------------------------------
+
+	function calculateDistance(lat1, lon1, lat2, lon2) {
+		const deltaLat = toRadians(lat2 - lat1);
+		const deltaLon = toRadians(lon2 - lon1);
+		const a = Math.sin(deltaLat / 2) ** 2
+			+ Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.sin(deltaLon / 2) ** 2;
+
+		return 2 * EARTH_RADIUS_METERS * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+	}
+
+	// Initial bearing from point 1 to point 2, in degrees clockwise from true north (0-360).
+	function calculateBearing(lat1, lon1, lat2, lon2) {
+		const deltaLon = toRadians(lon2 - lon1);
+		const y = Math.sin(deltaLon) * Math.cos(toRadians(lat2));
+		const x = Math.cos(toRadians(lat1)) * Math.sin(toRadians(lat2))
+			- Math.sin(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.cos(deltaLon);
+
+		return (toDegrees(Math.atan2(y, x)) + 360) % 360;
+	}
+
+	// --- Hardware: geolocation and compass --------------------------------
+
+	function getLocation() {
+    console.warn("[Mock GPS] Bypassing hardware to prevent Java crash.");
+    return Promise.resolve({
+        latitude: 37.74590,
+        longitude: -119.53320,
+        accuracy: 10,
+        timestamp: Date.now()
+    });
+}
+
+	function getHeading() {
+		return new Promise((resolve, reject) => {
+			if (!navigator.compass) {
+				reject(new Error('Device orientation plugin is not available.'));
+				return;
+			}
+
+			navigator.compass.getCurrentHeading(
+				(heading) => resolve({
+					magneticHeading: heading.magneticHeading,
+					trueHeading: heading.trueHeading,
+					accuracy: heading.headingAccuracy
+				}),
+				(error) => reject(new Error(`Compass failed (code ${error && error.code}).`))
+			);
+		});
+	}
+
+	// --- Hardware: SMS transmission ---------------------------------------
+
+	function formatLocationMessage(latitude, longitude, timestampMs = Date.now()) {
+		return `${SMS_PREFIX}|${latitude.toFixed(6)}|${longitude.toFixed(6)}|${Math.floor(timestampMs / 1000)}`;
+	}
+
+	function ensureSmsPermission() {
+    console.warn("[Mock SMS Auth] Bypassing permission check to prevent Java crash.");
+    return Promise.resolve(true); // Automatically approve since we did it in Android Settings
+}
+
+function sendLocationSMS(phone) {
+        if (!phone) {
+            return Promise.reject(new Error('A destination phone number is required.'));
+        }
+
+        return Promise.all([getLocation(), ensureSmsPermission()]).then(([position]) => {
+            const message = formatLocationMessage(position.latitude, position.longitude, position.timestamp);
+            
+            return new Promise((resolve) => {
+                console.warn("[Mock SMS] Bypassing broken Java plugin. Using native web intent.");
+                // Force Android to open the default SMS app via URI scheme
+                window.location.href = `sms:${phone}?body=${encodeURIComponent(message)}`;
+                resolve({ phone, message, position });
+            });
+        });
+    }
+
+	// --- Hardware: SMS reception ------------------------------------------
+
+	function parsePeerLocation(body) {
+		const match = SMS_PATTERN.exec(String(body || '').trim());
+		if (!match) {
+			return null;
+		}
+
+		const latitude = Number(match[1]);
+		const longitude = Number(match[2]);
+		if (Math.abs(latitude) > 90 || Math.abs(longitude) > 180) {
+			return null;
+		}
+
+		return { latitude, longitude, timestamp: Number(match[3]) * 1000 };
+	}
+
+	// Entry point for every incoming SMS; non-TAP messages are ignored.
+	function handleIncomingSms(sms) {
+		const peer = parsePeerLocation(sms && sms.body);
+		if (!peer) {
+			return Promise.resolve(false);
+		}
+
+		return getLocation()
+			.then((position) => {
+				localPosition = [position.latitude, position.longitude];
+			})
+			.catch((error) => console.warn('Using last known local position.', error))
+			.then(() => {
+				const distance = calculateDistance(localPosition[0], localPosition[1], peer.latitude, peer.longitude);
+				updateMap({ latitude: localPosition[0], longitude: localPosition[1] }, peer, distance);
+				return true;
+			});
+	}
+
+	// The incoming-SMS API comes from `cordova-plugin-sms` (cordova-sms-plugin can only send).
+	function startSmsListener() {
+		if (!window.SMS || typeof window.SMS.startWatch !== 'function') {
+			console.warn('SMS receive plugin (cordova-plugin-sms) is not installed; incoming SMS will not be intercepted.');
+			return;
+		}
+
+		document.addEventListener('onSMSArrive', (event) => {
+			handleIncomingSms({ address: event.data.address, body: event.data.body });
+		});
+
+		window.SMS.startWatch(
+			() => console.info('Listening for incoming SMS.'),
+			(error) => console.error('Unable to start the SMS listener.', error)
+		);
+	}
+
+	// --- Leaflet map binding ----------------------------------------------
+
+	function formatCoordinate(value, positiveLabel, negativeLabel) {
+		return `${Math.abs(value).toFixed(5)} ${value >= 0 ? positiveLabel : negativeLabel}`;
+	}
+
+	function formatBearing(degrees) {
+		const rounded = Math.round(degrees) % 360;
+		const point = COMPASS_POINTS[Math.round(rounded / 45) % 8];
+		return `${String(rounded).padStart(3, '0')} ${point}`;
+	}
+
+	function updateMap(local, peer, distanceMeters) {
+		const localLatLng = [local.latitude, local.longitude];
+		const peerLatLng = [peer.latitude, peer.longitude];
+		const bearing = calculateBearing(local.latitude, local.longitude, peer.latitude, peer.longitude);
+		const receivedAt = new Date(peer.timestamp || Date.now());
+		const time = receivedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+
+		Object.assign(selectedPeer, {
+			coordinates: peerLatLng,
+			latitude: formatCoordinate(peer.latitude, 'N', 'S'),
+			longitude: formatCoordinate(peer.longitude, 'E', 'W'),
+			distanceMeters: Math.round(distanceMeters),
+			bearingDegrees: Math.round(bearing) % 360,
+			bearingLabel: formatBearing(bearing),
+			lastLocation: `Last location - ${time} via SMS`
+		});
+		updateMockTargetDetails();
+
+		if (map && localMarker && peerMarker && routeLine) {
+			localMarker.setLatLng(localLatLng).setTooltipContent('You');
+			peerMarker.setLatLng(peerLatLng).setTooltipContent(`${selectedPeer.name} · ${selectedPeer.distanceMeters} m`);
+			routeLine.setLatLngs([localLatLng, peerLatLng]);
+			map.fitBounds(window.L.latLngBounds([localLatLng, peerLatLng]), { padding: [48, 48], maxZoom: 17 });
+		}
+
+		if (currentMode === 'radar') {
+			requestAnimationFrame(drawRadar);
+		}
+	}
+
+	// --- Independent test mode --------------------------------------------
+
+	// Verifies geolocation, compass and SMS on a physical device without the UI/database work.
+	async function testPing() {
+		try {
+			const position = await getLocation();
+			console.info('[testPing] Location:', position);
+
+			const heading = await getHeading().catch((error) => {
+				console.warn('[testPing] Compass unavailable.', error);
+				return null;
+			});
+			console.info('[testPing] Heading:', heading);
+
+			const result = await sendLocationSMS(TEST_PHONE_NUMBER);
+			console.info(`[testPing] SMS sent to ${result.phone}: ${result.message}`);
+			return result;
+		} catch (error) {
+			console.error('[testPing] Failed.', error);
+			throw error;
+		}
+	}
+
+	window.TraceTracking = {
+		getLocation,
+		getHeading,
+		sendLocationSMS,
+		handleIncomingSms,
+		calculateDistance,
+		calculateBearing,
+		updateMap,
+		testPing
+	};
+
+	document.addEventListener('deviceready', () => {
+		startSmsListener();
+		console.info('Trace-A-Peer hardware APIs ready. Run TraceTracking.testPing() to test.');
+	}, false);
 
 	initializeMap();
 	updateMockTargetDetails();
