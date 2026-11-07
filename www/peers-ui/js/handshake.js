@@ -76,16 +76,13 @@ const Handshake = (() => {
     return window;
   }
 
+  // SMS reception is registered once by tracking.js (cordova-plugin-sms-receive); this module only subscribes to it.
   let listening = false;
-  function listen() { // needs cordova-plugin-sms-receive, registered once by the host page (tracking.js)
+  function listen() {
     if (listening) return true;
-    const h = host();
-    if (h.TraceSms) { h.TraceSms.subscribe(m => handle(m.address, m.body)); listening = true; return true; }
-    // Standalone fallback (peers page opened on its own): no shared SMS hub exists, so register directly.
-    const r = h.cordova && h.cordova.plugins && h.cordova.plugins.SMSReceive;
-    if (!r) return false;
-    h.document.addEventListener('onSMSArrive', e => { const m = e.data || e; handle(m.address, m.body); });
-    r.startWatch(() => {}, err => console.warn('SMS watch:', err));
+    const hub = host().TraceSms;
+    if (!hub) { console.warn('SMS hub (tracking.js) not available; incoming handshake SMS will not be received.'); return false; }
+    hub.subscribe(m => handle(m.address, m.body));
     listening = true;
     return true;
   }
