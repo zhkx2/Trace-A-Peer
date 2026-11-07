@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' data: gap: https://ssl.gstatic.com 'unsafe-eval'; style-src 'self' 'unsafe-inline'; media-src *; img-src 'self' data: content:;">
+<meta name="format-detection" content="telephone=no">
+<meta name="msapplication-tap-highlight" content="no">
+<meta name="viewport" content="initial-scale=1, width=device-width, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="css/peers.css">
+<title>Trace-a-peer · Peers</title>
+</head>
+<body>
+<div id="app">
+  <header class="bar">
+    <div><h1>Peers</h1><p id="sub"></p></div>
+    <div class="bar-actions">
+      <button class="badge ok" id="net" aria-label="Network state (tap to preview)">2G SMS Active</button>
+      <button class="icon-btn" id="theme" aria-label="Toggle light or dark theme">🌙</button>
+    </div>
+  </header>
+  <div class="banner" id="banner" hidden></div>
+  <div class="tools">
+    <input id="q" type="search" placeholder="Search name or number" autocomplete="off">
+    <select id="sort" aria-label="Sort peers">
+      <option value="recent">Recent</option><option value="near">Nearest</option><option value="name">A–Z</option>
+    </select>
+  </div>
+  <div class="chips" id="chips"></div>
+  <main id="list"></main>
+</div>
+<button class="fab" id="add">+ Add Peer</button>
+
+<div class="overlay" id="detail"><div class="sheet" id="detailBody"></div></div>
+
+<div class="overlay" id="addSheet">
+  <div class="sheet" role="dialog" aria-label="Add peer">
+    <div class="grab"></div>
+    <h2>Add a peer</h2>
+    <p class="hint">They must accept the SMS handshake before you can see their location.</p>
+    <button class="btn" id="import" type="button">Import from contacts</button>
+    <label for="phone">Phone number</label>
+    <input id="phone" type="tel" inputmode="tel" placeholder="09XX XXX XXXX or +639XXXXXXXXX" autocomplete="off">
+    <div class="err" id="phoneErr"></div>
+    <label for="nick">Nickname</label>
+    <input id="nick" maxlength="20" placeholder="e.g. Trail buddy Jun" autocomplete="off">
+    <div class="err" id="nickErr"></div>
+    <label class="switch-row"><span>Allow this peer to request my location</span><input type="checkbox" id="allow" checked></label>
+    <div class="btns"><button class="btn" id="cancel" type="button">Cancel</button><button class="btn primary" id="send" type="button">Send Handshake Request</button></div>
+  </div>
+</div>
+
+<div class="overlay center" id="confirm">
+  <div class="sheet dialog">
+    <h2 id="cTitle">Delete peer?</h2>
+    <p class="hint">This removes the peer and their saved location history from this phone.</p>
+    <div class="btns"><button class="btn" id="cNo">Keep</button><button class="btn del" id="cYes">Delete Peer</button></div>
+  </div>
+</div>
+<div id="toast" role="status"></div>
+
+<script src="../cordova.js"></script>
+<script src="js/peers.js"></script>
+</body>
+</html>
