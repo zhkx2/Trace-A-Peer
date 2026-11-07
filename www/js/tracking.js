@@ -35,6 +35,9 @@
 	let centeredOnFix = false;
 	let selectedPeerId = null;
 	let radarBearing = null;
+	let deviceHeading = null; // smoothed compass heading in degrees, null until the first reading
+	let compassWatchId = null;
+	let trackingVisible = true;
 	let tileLoaded = false;
 	let currentMode = 'map';
 	let terrainEnabled = true;
@@ -803,8 +806,11 @@
 		context.lineWidth = 1;
 		context.stroke();
 
+		// The dial turns with the phone: true north sits at -heading, and the arrow is relative to where the phone points.
+		const north = deviceHeading === null ? 0 : deviceHeading;
+
 		for (let degrees = 0; degrees < 360; degrees += 5) {
-			const angle = (degrees - 90) * Math.PI / 180;
+			const angle = (degrees - north - 90) * Math.PI / 180;
 			const tickLength = degrees % 30 === 0 ? 14 : degrees % 10 === 0 ? 9 : 5;
 			const innerRadius = radius - tickLength;
 			context.beginPath();
@@ -825,13 +831,13 @@
 			{ label: 'S', degrees: 180 },
 			{ label: 'W', degrees: 270 }
 		].forEach(({ label, degrees }) => {
-			const angle = (degrees - 90) * Math.PI / 180;
+			const angle = (degrees - north - 90) * Math.PI / 180;
 			const labelRadius = radius + 16;
 			context.fillText(label, centerX + Math.cos(angle) * labelRadius, centerY + Math.sin(angle) * labelRadius);
 		});
 
 		if (radarBearing !== null) {
-			const heading = (radarBearing - 90) * Math.PI / 180;
+			const heading = (radarBearing - north - 90) * Math.PI / 180;
 			const arrowLength = radius * 0.62;
 			const tipX = centerX + Math.cos(heading) * arrowLength;
 			const tipY = centerY + Math.sin(heading) * arrowLength;
@@ -862,11 +868,55 @@
 		context.fill();
 	}
 
+	// Compass runs only while the radar is on screen, to save battery.
+	let radarFramePending = false;
+	function scheduleRadarDraw() {
+		if (radarFramePending) {
+			return;
+		}
+		radarFramePending = true;
+		requestAnimationFrame(() => {
+			radarFramePending = false;
+			drawRadar();
+		});
+	}
+
+	function applyHeading(heading) {
+		const reading = heading.trueHeading >= 0 ? heading.trueHeading : heading.magneticHeading;
+		if (!Number.isFinite(reading)) {
+			return;
+		}
+		if (deviceHeading === null) {
+			deviceHeading = reading;
+		} else {
+			// Low-pass filter along the shortest way round the circle so the arrow does not jitter.
+			const delta = ((reading - deviceHeading + 540) % 360) - 180;
+			deviceHeading = (deviceHeading + delta * 0.3 + 360) % 360;
+		}
+		scheduleRadarDraw();
+	}
+
+	function syncCompass() {
+		const shouldRun = currentMode === 'radar' && trackingVisible;
+		if (shouldRun && compassWatchId === null && navigator.compass) {
+			compassWatchId = navigator.compass.watchHeading(
+				applyHeading,
+				(error) => console.warn(`Compass watch error (code ${error && error.code}).`),
+				{ frequency: 120 }
+			);
+		} else if (!shouldRun && compassWatchId !== null) {
+			navigator.compass.clearWatch(compassWatchId);
+			compassWatchId = null;
+			deviceHeading = null;
+		}
+	}
+
 	function setMode(mode) {
 		currentMode = mode;
 		const showRadar = mode === 'radar';
 		mapPanel.hidden = showRadar;
 		radarPanel.hidden = !showRadar;
+		syncCompass();
 
 		if (showRadar) {
 			requestAnimationFrame(drawRadar);
@@ -962,7 +1012,9 @@
 		}
 	});
 	window.addEventListener('app:viewchange', (event) => {
-		if (event.detail.view === 'view-tracking') {
+		trackingVisible = event.detail.view === 'view-tracking';
+		syncCompass();
+		if (trackingVisible) {
 			refreshPeers();
 			if (currentMode === 'radar') {
 				requestAnimationFrame(drawRadar);

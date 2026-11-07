@@ -12,7 +12,8 @@ const DB = (() => {
   const unpack = r => ({ ...r, paired: !!r.paired, fav: !!r.fav, allow: !!r.allow, log: JSON.parse(r.log || '[]') || [], req: JSON.parse(r.req || 'null') });
   const lsRead = (k) => { try { return JSON.parse(localStorage.getItem(k)) || []; } catch (e) { return []; } };
   const lsWrite = (k, a) => { try { localStorage.setItem(k, JSON.stringify(a)); } catch (e) {} };
-  const run = (q, a = []) => new Promise((ok, no) => sql.executeSql(q, a, (_, r) => ok(r), (_, e) => no(e)));
+  // db.executeSql calls back with (resultSet) only, while transaction.executeSql uses (tx, resultSet): take the last argument.
+  const run = (q, a = []) => new Promise((ok, no) => sql.executeSql(q, a, (...r) => ok(r[r.length - 1]), (...e) => no(e[e.length - 1])));
   const rowsOf = r => Array.from({ length: r.rows.length }, (_, i) => r.rows.item(i));
 
   // On a device, wait for deviceready so the SQLite plugin exists before choosing a storage engine.

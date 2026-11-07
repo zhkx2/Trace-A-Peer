@@ -220,10 +220,14 @@
     $('#cYes').onclick = () => { const id = S.del; S.peers = S.peers.filter(p => p.id !== id); DB.remove(id); closeAll(); render(); toast('Peer deleted'); }; // Delete
     wireConsent();
     ['#detail', '#addSheet', '#confirm'].forEach(s => $(s).addEventListener('click', e => { if (e.target.id === s.slice(1)) { s === '#detail' ? closeAll() : $(s).classList.remove('show'); } }));
-    document.addEventListener('backbutton', () => { // Android hardware back button
+    // The iframe has no cordova.js of its own (a second one would invalidate the main page's native bridge),
+    // so the hardware back button is listened for on the main page.
+    const host = (() => { try { return window.parent !== window ? window.parent : window; } catch (e) { return window; } })();
+    host.document.addEventListener('backbutton', () => { // Android hardware back button
+      if (window.frameElement && window.frameElement.offsetParent === null) return; // Peers tab not visible
       const open = ['#confirm', '#consent', '#addSheet', '#detail'].find(s => $(s).classList.contains('show'));
       if (open) { open === '#detail' ? closeAll() : $(open).classList.remove('show'); }
-      else if (navigator.app && navigator.app.exitApp) navigator.app.exitApp();
+      else if (host.navigator.app && host.navigator.app.exitApp) host.navigator.app.exitApp();
     }, false);
     setInterval(() => { if (!document.querySelector('.overlay.show')) render(); }, 30000);
     DB.open().then(() => DB.all()).then(rows => { S.peers = rows; render(); Handshake.init(handshakeCtx); checkSms(false); })
