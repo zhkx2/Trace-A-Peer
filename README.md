@@ -79,7 +79,9 @@ www/                  Web app that Cordova packages
   peers-ui/           Peer Management & Communication UI
     index.html
     css/peers.css
-    js/peers.js
+    js/db.js          SQLite / localStorage CRUD
+    js/handshake.js   SMS consent handshake (2FA)
+    js/peers.js       UI logic
 config.xml            Cordova app settings (start page, plugins)
 package.json          Dependencies
 ```
@@ -109,3 +111,21 @@ All data is currently mocked. `SmsService` at the top of `js/peers.js` is the on
 - **`JAVA_HOME` or `ANDROID_HOME` errors:** run `cordova requirements` and set the variable it names.
 - **Gradle errors:** confirm `java -version` shows JDK 17.
 - **"No target found":** wait for the emulator to finish booting and match the name from `adb devices`.
+
+## Milestone 3: functional features
+
+**Plugins to install (once, then commit `package.json` and `config.xml`):**
+
+```
+cordova plugin add cordova-sqlite-storage
+cordova plugin add cordova-sms-plugin
+cordova plugin add cordova-plugin-sms-receive
+```
+
+- **Local database:** `js/db.js` stores peers in SQLite (`traceapeer.db`) with Create, Read, Update, and Delete functions. In the browser it falls back to `localStorage`.
+- **CRUD:** add a peer (Create), list/search/filter/sort (Read), edit nickname, favourite, and tracking permission (Update), delete with confirmation (Delete).
+- **2FA SMS consent handshake** (`js/handshake.js`): the requester adds a number and gets a 6-digit code on screen. The peer receives a request SMS, must approve it in the app and type the code the requester gives them (call, chat, in person). The code is never sent in the request SMS. Codes expire after 10 minutes and lock after 3 wrong tries; replies from other numbers are ignored.
+- **Message format:** `TAP1|REQ|id|name`, `TAP1|ACC|id|code`, `TAP1|DEN|id|reason`, `TAP1|CFM|id`.
+- **Still mocked:** Ping via SMS and Refresh Location (the location SMS round trip is the next step).
+
+**Testing on two emulators:** start two AVDs (for example `emulator-5554` and `emulator-5556`), run `cordova run android --target=emulator-5554` and again with `emulator-5556`. Emulators text each other using their port number as the phone number, so add `5556` on the first emulator and `5554` on the second. Set `DEV_ALLOW_EMULATOR_NUMBERS` to `false` in `peers.js` for the final build.
