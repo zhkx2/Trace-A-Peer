@@ -20,13 +20,15 @@ const Handshake = (() => {
 
   function send(phone, body) { // needs cordova-sms-plugin
     const s = host().sms;
-    if (!s) { console.log('[no SMS plugin] to', phone, ':', body); return Promise.resolve(false); }
+    if (!s) { lastError = 'SMS plugin not available'; console.log('[no SMS plugin] to', phone, ':', body); return Promise.resolve(false); }
     return new Promise((ok, no) => {
       const go = () => s.send(String(phone).replace(/\s/g, ''), body, { android: { intent: '' } }, () => ok(true), e => no(e));
       s.hasPermission(h => h ? go() : s.requestPermission(go, () => no('SMS permission denied')), no);
     });
   }
-  const trySend = (p, body) => send(p.phone, body).catch(e => { ctx.say('SMS failed: ' + e); return false; });
+  // Why the last send failed, so the UI can show the real reason instead of guessing "plugin missing".
+  let lastError = '';
+  const trySend = (p, body) => { lastError = ''; return send(p.phone, body).catch(e => { lastError = (e && e.message) || (typeof e === 'string' && e !== 'Error' ? e : '') || 'Android could not send it. Check the SIM, signal and load; some carriers block texts to your own number.'; console.warn('SMS failed:', e); return false; }); };
   const pair = p => { p.paired = true; p.status = 'active'; p.allow = true; p.req = null; log(p, 'Paired, location sharing allowed'); ctx.save(p); ctx.changed(); };
 
   function start(p, myName) { // requester side: new code, send REQ
@@ -86,5 +88,5 @@ const Handshake = (() => {
     listening = true;
     return true;
   }
-  return { init: c => { ctx = c; return listen(); }, start, accept, decline, handle, MAX_TRIES };
+  return { init: c => { ctx = c; return listen(); }, start, accept, decline, handle, lastError: () => lastError, MAX_TRIES };
 })();

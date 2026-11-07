@@ -132,7 +132,7 @@
       render();
     });
   }
-  function resend(p) { Handshake.start(p, ls.get(MEKEY) || 'Someone').then(ok => toast(ok ? 'New request sent' : 'SMS plugin unavailable, request not sent')); }
+  function resend(p) { Handshake.start(p, ls.get(MEKEY) || 'Someone').then(ok => toast(ok ? 'New request sent' : 'Request not sent: ' + Handshake.lastError())); }
   function act(p, a, el) {
     if (a === 'ping' || a === 'refresh') ping(p);
     else if (a === 'pair') p.req && p.req.dir === 'in' ? openConsent(p) : resend(p);
@@ -173,7 +173,7 @@
     const p = newPeer(nick, fmtPhone(raw)); p.allow = $('#allow').checked;
     S.peers.unshift(p); DB.insert(p); // Create
     closeAll(); S.sel = p.id; render();
-    Handshake.start(p, me).then(sent => toast(sent ? 'Request sent. Give them the code shown.' : 'Saved, but SMS could not be sent (plugin missing?)'));
+    Handshake.start(p, me).then(sent => toast(sent ? 'Request sent. Give them the code shown.' : 'Saved, but the SMS was not sent: ' + Handshake.lastError()));
   }
   function importContact() {
     const fill = (n, ph) => { $('#nick').value = (n || '').slice(0, 20); $('#phone').value = ph || ''; toast('Contact imported'); };
@@ -194,7 +194,7 @@
       if (!p || !p.req) return $('#consent').classList.remove('show');
       if (!/^\d{6}$/.test(code)) return ($('#coErr').textContent = 'Enter the 6-digit code');
       $('#consent').classList.remove('show');
-      Handshake.accept(p, code).then(ok => toast(ok ? 'Consent sent. Waiting for confirmation' : 'Could not send consent by SMS'));
+      Handshake.accept(p, code).then(ok => toast(ok ? 'Consent sent. Waiting for confirmation' : 'Consent not sent: ' + Handshake.lastError()));
     };
     $('#coNo').onclick = () => { const p = find(S.consent); $('#consent').classList.remove('show'); if (p && p.req) { Handshake.decline(p); toast('Request declined'); } };
   }
