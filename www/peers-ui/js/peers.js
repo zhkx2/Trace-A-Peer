@@ -4,13 +4,15 @@
   const TKEY = 'tap.theme', MEKEY = 'tap.me';
   const DEV_ALLOW_EMULATOR_NUMBERS = true; // lets emulator numbers like 5556 pass validation; set to false for the final build
 
-  const STATUS = { active: ['2G SMS Active', 'ok'], queue: ['Offline Queueing', 'warn'], pending: ['Handshake Pending', 'info'], declined: ['Declined', 'danger'] };
-  const NETS = [['2G SMS Active', 'ok', 'sms'], ['Offline Queueing', 'warn', 'queue'], ['No Signal', 'danger', 'none']];
+  const STATUS = { active: ['2G SMS Active', 'ok'], waiting: ['Awaiting Reply', 'info'], queue: ['Send Failed', 'warn'], pending: ['Handshake Pending', 'info'], declined: ['Declined', 'danger'] };
+  const NET_STATES = { sms: ['SMS Ready', 'ok'], perm: ['SMS Permission Needed', 'warn'], none: ['SMS Unavailable', 'danger'] };
   const COLORS = ['#0f766e', '#b45309', '#7c3aed', '#be185d', '#15803d', '#475569'];
   const DIRS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
 
-  const S = { peers: [], net: 'sms', outbox: [], f: 'all', q: '', sort: 'recent', sel: null, del: null, edit: null, consent: null };
-  let ni = 0;
+  const S = { peers: [], net: 'sms', f: 'all', q: '', sort: 'recent', sel: null, del: null, edit: null, consent: null };
+
+  // The main page (tracking.js) owns SMS, GPS and the shared database connection.
+  const tracking = () => { try { const h = window.parent !== window ? window.parent : window; return h.TraceTracking || null; } catch (e) { return null; } };
 
   const ls = { get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} } };
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -25,7 +27,6 @@
   const norm = s => String(s).replace(/\D/g, '').slice(-10);
   const fmtPhone = raw => { const d = String(raw).replace(/\D/g, ''); if (d.length < 10) return String(raw); const t = d.slice(-10); return '0' + t.slice(0, 3) + ' ' + t.slice(3, 6) + ' ' + t.slice(6); };
   const validPhone = raw => /^(09\d{9}|\+639\d{9})$/.test(raw) || (DEV_ALLOW_EMULATOR_NUMBERS && /^55\d\d$/.test(raw));
-  const mockFetch = () => new Promise(r => setTimeout(r, 1400)); // stand-in for the PING/LOC SMS round trip (next milestone)
   function toast(t) { const e = $('#toast'); e.textContent = t; e.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => e.classList.remove('show'), 2600); }
 
   /* ---- Theme ---- */
@@ -78,13 +79,13 @@
   function render() {
     const n = k => S.peers.filter(p => p.status === k).length;
     $('#sub').textContent = `${S.peers.length} peers · ${n('active')} active · ${n('pending')} pending · ${DB.kind()}`;
-    const chips = [['all', 'All', S.peers.length], ['active', 'Active', n('active')], ['queue', 'Queued', n('queue')], ['pending', 'Pending', n('pending')], ['fav', '★ Favourites', S.peers.filter(p => p.fav).length]];
+    const chips = [['all', 'All', S.peers.length], ['active', 'Active', n('active')], ['queue', 'Failed', n('queue')], ['pending', 'Pending', n('pending')], ['fav', '★ Favourites', S.peers.filter(p => p.fav).length]];
     $('#chips').innerHTML = chips.map(c => `<button class="chip ${S.f === c[0] ? 'on' : ''}" data-f="${c[0]}">${c[1]} ${c[2]}</button>`).join('');
     const v = visible();
     $('#list').innerHTML = v.length ? v.map(cardHTML).join('') : `<div class="empty">${S.peers.length ? 'No peers match your filter.' : 'No peers yet.<br>Tap “Add Peer” to send a handshake request.'}</div>`;
     const b = $('#banner');
-    b.hidden = !(S.net !== 'sms' || S.outbox.length);
-    b.textContent = S.net === 'none' ? `No signal. ${S.outbox.length} ping(s) waiting; they send when signal returns.` : `Offline queueing: ${S.outbox.length} ping(s) waiting for SMS signal.`;
+    b.hidden = S.net === 'sms';
+    b.textContent = S.net === 'none' ? 'SMS plugin unavailable. Pings and requests cannot be sent from this device.' : 'SMS permission is off. Tap the status badge to allow it.';
     if (S.sel) detail(find(S.sel));
   }
   function detail(p) {
@@ -114,31 +115,27 @@
   function closeAll() { S.sel = null; ['#detail', '#addSheet', '#confirm', '#consent'].forEach(s => $(s).classList.remove('show')); }
 
   /* ---- Actions ---- */
-  function run(p) { // mocked location fetch for paired peers
-    p.status = 'queue'; render();
-    mockFetch().then(() => {
-      p.status = 'active'; p.ts = Date.now();
-      if (p.dist == null) { p.dist = +(Math.random() * 4 + 0.3).toFixed(1); p.bearing = Math.floor(Math.random() * 360); p.lat = +(14.55 + Math.random() * 0.1).toFixed(5); p.lng = +(120.95 + Math.random() * 0.1).toFixed(5); }
-      log(p, 'Location received'); DB.update(p); render(); toast('Location received from ' + p.name);
-    });
-  }
+  // Real SMS round trip: tracking.js sends the ping and stores the peer's reply when it arrives.
   function ping(p) {
     if (!p.paired) return toast('Pair with ' + p.name + ' first');
+    const t = tracking();
+    if (!t) return toast('Tracking module unavailable');
     buzz();
-    if (S.net !== 'sms') { p.status = 'queue'; S.outbox.push(p.id); log(p, 'Ping queued, waiting for signal'); DB.update(p); render(); return toast('No SMS signal. Ping queued.'); }
-    log(p, 'Ping sent via SMS'); toast('SMS ping sent to ' + p.name); run(p);
+    t.pingPeer(p.id).then(() => toast('SMS ping sent to ' + p.name + '. Waiting for a reply'), e => toast('Ping failed: ' + e.message));
   }
-  function setNet() {
-    ni = (ni + 1) % 3; S.net = NETS[ni][2];
-    const b = $('#net'); b.textContent = NETS[ni][0]; b.className = 'badge ' + NETS[ni][1];
-    if (S.net === 'sms') { const ids = S.outbox.splice(0); ids.forEach((id, i) => { const p = find(id); if (p) setTimeout(() => run(p), i * 700); }); toast(ids.length ? 'Signal back. Sending ' + ids.length + ' queued ping(s)' : '2G SMS active'); }
-    render();
+  function reloadPeers() { return DB.all().then(rows => { S.peers = rows; render(); }); }
+  function checkSms(request) {
+    const t = tracking();
+    return (t ? t.getSmsStatus(request) : Promise.resolve('none')).then(state => {
+      S.net = state;
+      const [label, cls] = NET_STATES[state]; const b = $('#net'); b.textContent = label; b.className = 'badge ' + cls;
+      render();
+    });
   }
   function resend(p) { Handshake.start(p, ls.get(MEKEY) || 'Someone').then(ok => toast(ok ? 'New request sent' : 'SMS plugin unavailable, request not sent')); }
   function act(p, a, el) {
-    if (a === 'ping') ping(p);
+    if (a === 'ping' || a === 'refresh') ping(p);
     else if (a === 'pair') p.req && p.req.dir === 'in' ? openConsent(p) : resend(p);
-    else if (a === 'refresh') { if (!p.paired) return toast('Pair with ' + p.name + ' first'); toast('Latest saved location · ' + ago(p.ts).toLowerCase()); }
     else if (a === 'fav') { p.fav = !p.fav; DB.update(p); render(); }
     else if (a === 'allow') { p.allow = el.checked; log(p, p.allow ? 'Tracking allowed' : 'Tracking blocked'); DB.update(p); render(); }
     else if (a === 'edit') openAdd(p);
@@ -181,7 +178,7 @@
   function importContact() {
     const fill = (n, ph) => { $('#nick').value = (n || '').slice(0, 20); $('#phone').value = ph || ''; toast('Contact imported'); };
     if (navigator.contacts && navigator.contacts.pickContact) navigator.contacts.pickContact(c => fill(c.displayName || (c.name && c.name.formatted), c.phoneNumbers && c.phoneNumbers[0] && c.phoneNumbers[0].value), () => {});
-    else fill('Ate Joy', '0936 555 0177'); // demo fallback when cordova-plugin-contacts is missing
+    else toast('Contacts plugin not installed. Type the number instead.');
   }
 
   /* ---- Consent (peer side of the handshake) ---- */
@@ -211,7 +208,7 @@
   function init() {
     applyTheme(currentTheme());
     $('#theme').onclick = () => applyTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
-    $('#net').onclick = setNet;
+    $('#net').onclick = () => checkSms(true);
     $('#q').oninput = e => { S.q = e.target.value; render(); };
     $('#sort').onchange = e => { S.sort = e.target.value; render(); };
     $('#chips').onclick = e => { const f = e.target.dataset.f; if (f) { S.f = f; render(); } };
@@ -229,8 +226,9 @@
       else if (navigator.app && navigator.app.exitApp) navigator.app.exitApp();
     }, false);
     setInterval(() => { if (!document.querySelector('.overlay.show')) render(); }, 30000);
-    DB.open().then(() => DB.all()).then(rows => { S.peers = rows; render(); Handshake.init(handshakeCtx); })
+    DB.open().then(() => DB.all()).then(rows => { S.peers = rows; render(); Handshake.init(handshakeCtx); checkSms(false); })
       .catch(e => { console.error(e); toast('Database error: ' + e); render(); });
+    const t = tracking(); if (t && t.onPeersChanged) t.onPeersChanged(() => reloadPeers().catch(e => console.error(e)));
     window.TAP = { simulate: Handshake.handle }; // dev helper: TAP.simulate('5556', 'TAP1|...') fakes an incoming SMS
   }
   let started = false;

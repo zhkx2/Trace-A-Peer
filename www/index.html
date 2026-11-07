@@ -14,7 +14,7 @@
     <section id="view-tracking" class="view-panel tracking-view active" role="tabpanel" aria-labelledby="tab-tracking">
       <header class="tracking-header">
         <div>
-          <p class="eyebrow">TRACE / A PEER <span class="demo-tag">DEMO</span></p>
+          <p class="eyebrow">TRACE / A PEER</p>
           <h1>Field view</h1>
         </div>
         <div class="network-status is-checking" id="map-status" role="status" aria-live="polite">
@@ -24,13 +24,13 @@
       </header>
 
       <div class="tracking-stage">
-        <div id="map-panel" class="tracking-surface map-surface" aria-label="Online map with sample peer positions">
-          <div id="map" role="application" aria-label="Map showing demo peer positions"></div>
+        <div id="map-panel" class="tracking-surface map-surface" aria-label="Online map with your position and peer positions">
+          <div id="map" role="application" aria-label="Map showing your position and peer positions"></div>
           <div id="map-unavailable" class="map-unavailable" hidden>
             <strong>Map unavailable</strong>
             <span>Connect to the internet to load map tiles, or switch to Radar.</span>
           </div>
-          <div class="map-caption"><span class="caption-marker" aria-hidden="true"></span> TERRAIN MAP <span>DEMO DATA</span></div>
+          <div class="map-caption"><span class="caption-marker" aria-hidden="true"></span> TERRAIN MAP <span>LIVE</span></div>
 
           <div class="map-fab-stack" aria-label="Map controls">
             <button id="layers-button" class="map-control-fab" type="button" aria-label="Switch to street map" title="Switch map layer">
@@ -43,23 +43,23 @@
 
           <section class="map-bottom-sheet" aria-label="Selected target details">
             <div class="target-heading">
-              <div class="target-avatar" id="target-avatar" aria-hidden="true">JK</div>
+              <div class="target-avatar" id="target-avatar" aria-hidden="true">--</div>
               <div class="target-identity">
-                <h2 id="target-name">Joshua King</h2>
-                <p id="target-status" class="offline-badge">Offline</p>
+                <h2 id="target-name">No peer selected</h2>
+                <p id="target-status" class="offline-badge">Waiting for SMS</p>
               </div>
             </div>
 
-            <p class="target-last-location" id="target-last-location">Last location - 12:38 via SMS</p>
+            <p class="target-last-location" id="target-last-location">No SMS location received yet</p>
 
             <div class="target-details-grid">
               <div class="target-detail">
                 <span class="detail-label">LAT / LON</span>
-                <strong id="target-coordinates">37.74590 N<br>119.53320 W</strong>
+                <strong id="target-coordinates">--</strong>
               </div>
               <div class="target-detail">
                 <span class="detail-label">FROM YOU</span>
-                <strong id="target-distance">450 m<br>048 Northeast</strong>
+                <strong id="target-distance">--</strong>
               </div>
             </div>
 
@@ -72,15 +72,15 @@
           <header class="radar-header">
             <div>
               <p class="radar-kicker">OFFLINE RADAR</p>
-              <h2 id="radar-target-name">Joshua King</h2>
+              <h2 id="radar-target-name">No peer selected</h2>
             </div>
             <button id="return-to-map-button" class="return-to-map-button" type="button">&lt;- Back to map</button>
           </header>
 
-          <canvas id="radar-canvas" aria-label="Compass pointing 48 degrees toward Joshua King"></canvas>
+          <canvas id="radar-canvas" aria-label="Compass waiting for a peer location"></canvas>
 
           <div class="radar-distance-block" aria-live="polite">
-            <strong id="radar-distance-value">450</strong>
+            <strong id="radar-distance-value">--</strong>
             <span>Meters Away</span>
           </div>
           <p class="radar-instruction">Keep your phone flat. Follow the arrow.</p>
@@ -88,15 +88,15 @@
           <section class="telemetry-card" aria-label="Last received GPS telemetry">
             <header class="telemetry-header">
               <h3>Last SMS GPS fix</h3>
-              <span>4 min ago</span>
+              <span id="telemetry-age">--</span>
             </header>
             <div class="telemetry-coordinates">
-              <div><span>LAT</span><strong>37.74590 N</strong></div>
-              <div><span>LON</span><strong>119.53320 W</strong></div>
+              <div><span>LAT</span><strong id="telemetry-lat">--</strong></div>
+              <div><span>LON</span><strong id="telemetry-lon">--</strong></div>
             </div>
             <footer class="telemetry-footer">
-              <span>Received at 12:38</span>
-              <span>Accuracy &plusmn;12 m</span>
+              <span id="telemetry-received">Nothing received yet</span>
+              <span>Via SMS</span>
             </footer>
           </section>
         </div>
@@ -121,9 +121,9 @@
             <div>Warning: Battery Optimization must be disabled for background tracking.</div>
           </div>
 
-          <div class="alert-banner alert-success">
+          <div id="permission-banner" class="alert-banner alert-warning">
             <span aria-hidden="true">&#x1F6E1;</span>
-            <div><strong>Ready for the trail</strong><br>Essential permissions are enabled.</div>
+            <div><strong id="permission-banner-title">Checking permissions</strong><br><span id="permission-banner-text">Reading Android permission states...</span></div>
           </div>
 
           <div class="section-title">ESSENTIAL PERMISSIONS</div>
@@ -137,7 +137,7 @@
                 </div>
               </div>
               <label class="switch">
-                <input type="checkbox" checked>
+                <input type="checkbox" data-permission="sms" aria-label="Background SMS permissions">
                 <span class="slider"></span>
               </label>
             </div>
@@ -151,7 +151,7 @@
                 </div>
               </div>
               <label class="switch">
-                <input type="checkbox" checked>
+                <input type="checkbox" data-permission="location" aria-label="Precise location permission">
                 <span class="slider"></span>
               </label>
             </div>
@@ -165,7 +165,7 @@
                 </div>
               </div>
               <label class="switch">
-                <input type="checkbox" checked>
+                <input type="checkbox" data-permission="notifications" aria-label="Notification permission">
                 <span class="slider"></span>
               </label>
             </div>
@@ -288,6 +288,7 @@
   <script src="cordova.js"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
   <script src="js/app.js"></script>
+  <script src="peers-ui/js/db.js"></script>
   <script src="js/tracking.js"></script>
   <script src="js/settings.js"></script>
   <script>
@@ -302,12 +303,6 @@
     document.getElementById('batteryModal').addEventListener('click', (event) => {
       if (event.target.id === 'batteryModal') {
         event.currentTarget.style.display = 'none';
-      }
-    });
-
-    document.getElementById('clear-logs-button').addEventListener('click', () => {
-      if (window.confirm('Are you sure you want to wipe all local SQLite telemetry logs?')) {
-        window.alert('Local SQLite logs cleared successfully.');
       }
     });
   </script>
