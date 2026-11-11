@@ -49,3 +49,12 @@ body {
   font-size: 14px;
   line-height: 1.5;
 }
+
+/* Explicit Dark Theme Class */
+body.dark-mode {
+  --bg-primary: #111827;
+  --surface: #1F2937;
+  --text-main: #F3F4F6;
+  --text-muted: #9CA3AF;
+  --border-color: #374151;
+}
