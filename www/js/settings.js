@@ -2,6 +2,7 @@
 document.addEventListener('DOMContentLoaded', function() {
     loadSavedPreferences();
     wirePermissionToggles();
+    wireBatterySaverToggle();
     wireClearLogsButton();
 });
 
@@ -236,6 +237,53 @@ function wirePermissionToggles() {
     renderPermissionStates(null);
 }
 
+function openAppSettingsFallback() {
+    window.alert('Open Android Settings > Apps > Trace-a-peer > Permissions to turn this permission off.');
+}
+
+function openAppSettings() {
+    try {
+        var plugin = window.cordova && window.cordova.plugins && window.cordova.plugins.settings;
+        if (!plugin || typeof plugin.open !== 'function') {
+            openAppSettingsFallback();
+            return;
+        }
+        plugin.open('application_details', function() {}, function(error) {
+            console.error('Unable to open app settings.', error);
+            openAppSettingsFallback();
+        });
+    } catch (error) {
+        console.error('Open settings plugin failed.', error);
+        openAppSettingsFallback();
+    }
+}
+
+// Android apps cannot revoke their own permissions, so route the user to system Settings.
+function confirmPermissionOff() {
+    var message = 'Android only lets you turn a permission off in system Settings. Open app settings now?';
+    var onChoice = function(choice) {
+        // Native confirm returns the 1-based button index; Cancel (2) or dismiss (0) keeps the permission.
+        if (choice === 1) {
+            openAppSettings();
+        }
+        refreshPermissionStates(); // always snap the toggle back to the real system state
+    };
+
+    try {
+        if (navigator.notification && typeof navigator.notification.confirm === 'function') {
+            navigator.notification.confirm(message, onChoice, 'Turn off permission', ['Open Settings', 'Cancel']);
+            return;
+        }
+    } catch (error) {
+        console.error('Native confirm failed.', error);
+    }
+
+    if (window.confirm(message)) {
+        openAppSettings();
+    }
+    refreshPermissionStates();
+}
+
 function onPermissionToggle(event) {
     var toggle = event.target;
     var permissions = getPermissionsPlugin();
@@ -243,10 +291,8 @@ function onPermissionToggle(event) {
         return;
     }
 
-    // Android apps cannot revoke their own permissions; that only happens in system Settings.
     if (!toggle.checked) {
-        window.alert('Android only lets you turn a permission off in Settings > Apps > Trace-a-peer > Permissions.');
-        refreshPermissionStates();
+        confirmPermissionOff();
         return;
     }
 
@@ -266,6 +312,25 @@ function onPermissionToggle(event) {
     request.then(function() {
         announcePermissions();
         return refreshPermissionStates();
+    });
+}
+
+// Battery Saver: persisted immediately; tracking.js restarts the GPS watcher on the event.
+var BATTERY_SAVER_KEY = 'battery_saver';
+
+function wireBatterySaverToggle() {
+    var toggle = document.getElementById('battery-saver-toggle');
+    if (!toggle) {
+        return;
+    }
+    toggle.checked = localStorage.getItem(BATTERY_SAVER_KEY) === 'true';
+    toggle.addEventListener('change', function() {
+        try {
+            localStorage.setItem(BATTERY_SAVER_KEY, toggle.checked ? 'true' : 'false');
+        } catch (error) {
+            console.error('Unable to save Battery Saver state.', error);
+        }
+        document.dispatchEvent(new CustomEvent('app:batterysaver', { detail: { enabled: toggle.checked } }));
     });
 }
 
@@ -314,7 +379,7 @@ function saveSettings() {
     }
 
     // Save toggle switch states (permission toggles always mirror the OS, so they are skipped)
-    var toggles = document.querySelectorAll('.switch input[type="checkbox"]:not([data-permission])');
+    var toggles = document.querySelectorAll('.switch input[type="checkbox"]:not([data-permission]):not(#battery-saver-toggle)');
     toggles.forEach(function(toggle, index) {
         localStorage.setItem('setting_toggle_' + index, toggle.checked);
     });
@@ -341,7 +406,7 @@ function loadSavedPreferences() {
     }
 
     // Restore saved toggle switches
-    var toggles = document.querySelectorAll('.switch input[type="checkbox"]:not([data-permission])');
+    var toggles = document.querySelectorAll('.switch input[type="checkbox"]:not([data-permission]):not(#battery-saver-toggle)');
     toggles.forEach(function(toggle, index) {
         var savedState = localStorage.getItem('setting_toggle_' + index);
         if (savedState !== null) {

@@ -22,7 +22,9 @@
 	const PING_MESSAGE = 'TAP|PING';
 	const COMPASS_POINTS = ['North', 'Northeast', 'East', 'Southeast', 'South', 'Southwest', 'West', 'Northwest'];
 	const GEOLOCATION_OPTIONS = { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 };
-	const WATCH_OPTIONS = { enableHighAccuracy: true, timeout: 30000, maximumAge: 10000 };
+	const BATTERY_SAVER_KEY = 'battery_saver';
+	const WATCH_OPTIONS_PRECISE = { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 };
+	const WATCH_OPTIONS_SAVER = { enableHighAccuracy: false, timeout: 15000, maximumAge: 10000 };
 	// Replace with your own number before running testPing() on the device.
 	const TEST_PHONE_NUMBER = '+10000000000';
 
@@ -209,6 +211,21 @@
 	}
 
 	// getCurrentPosition for a fast first fix, then watchPosition for continuous updates.
+	function isBatterySaverOn() {
+		try {
+			return localStorage.getItem(BATTERY_SAVER_KEY) === 'true';
+		} catch (error) {
+			return false;
+		}
+	}
+
+	function stopLocationTracking() {
+		if (watchId !== null && navigator.geolocation) {
+			navigator.geolocation.clearWatch(watchId);
+		}
+		watchId = null;
+	}
+
 	function startLocationTracking() {
 		if (watchId !== null || !navigator.geolocation) {
 			return;
@@ -219,20 +236,35 @@
 				return;
 			}
 
+			const saver = isBatterySaverOn();
+			const options = saver ? WATCH_OPTIONS_SAVER : WATCH_OPTIONS_PRECISE;
+			console.info(`Starting GPS watch (battery saver ${saver ? 'ON' : 'OFF'}).`, options);
+
 			getLocation().then(applyLocalPosition).catch((error) => console.warn('Initial GPS fix failed.', error));
 			watchId = navigator.geolocation.watchPosition(
 				(position) => applyLocalPosition(toFix(position)),
 				(error) => {
+					if (error.code === 3) {
+						console.warn(`GPS watch timed out after ${options.timeout}ms; still waiting for a fix.`);
+						return;
+					}
 					console.warn(`GPS watch error (code ${error.code}): ${error.message}`);
 					if (error.code === 1) {
-						navigator.geolocation.clearWatch(watchId);
-						watchId = null;
+						stopLocationTracking(); // permission denied: restarts when permissions are granted again
 					}
 				},
-				WATCH_OPTIONS
+				options
 			);
 		});
 	}
+
+	// Re-create the watcher so a Battery Saver change applies without restarting the app.
+	function restartLocationTracking() {
+		stopLocationTracking();
+		startLocationTracking();
+	}
+
+	document.addEventListener('app:batterysaver', restartLocationTracking);
 
 	// --- Hardware: SMS transmission ---------------------------------------
 
@@ -1077,6 +1109,7 @@
 		notifyPeersChanged,
 		startForegroundService,
 		stopForegroundService,
+		restartLocationTracking,
 		testPing
 	};
 
