@@ -128,7 +128,7 @@
 
           <div class="section-title">ESSENTIAL PERMISSIONS</div>
           <div class="settings-card">
-            <div class="setting-item">
+            <button class="setting-item perm-row" type="button" data-permission="sms">
               <div class="setting-info">
                 <span class="setting-icon" aria-hidden="true">&#128172;</span>
                 <div class="setting-text">
@@ -136,13 +136,13 @@
                   <p>Send and receive location requests when the app is closed.</p>
                 </div>
               </div>
-              <label class="switch">
-                <input type="checkbox" data-permission="sms" aria-label="Background SMS permissions">
-                <span class="slider"></span>
-              </label>
-            </div>
+              <div class="perm-side">
+                <span class="perm-status" id="perm-status-sms" aria-live="polite">Checking...</span>
+                <span class="perm-hint" aria-hidden="true">Tap to enable &rsaquo;</span>
+              </div>
+            </button>
 
-            <div class="setting-item">
+            <button class="setting-item perm-row" type="button" data-permission="location">
               <div class="setting-info">
                 <span class="setting-icon" aria-hidden="true">&#128205;</span>
                 <div class="setting-text">
@@ -150,13 +150,27 @@
                   <p>Use precise location for reliable peer distance and bearing.</p>
                 </div>
               </div>
-              <label class="switch">
-                <input type="checkbox" data-permission="location" aria-label="Precise location permission">
-                <span class="slider"></span>
-              </label>
-            </div>
+              <div class="perm-side">
+                <span class="perm-status" id="perm-status-location" aria-live="polite">Checking...</span>
+                <span class="perm-hint" aria-hidden="true">Tap to enable &rsaquo;</span>
+              </div>
+            </button>
 
-            <div class="setting-item">
+            <button class="setting-item perm-row" type="button" data-permission="backgroundLocation">
+              <div class="setting-info">
+                <span class="setting-icon" aria-hidden="true">&#128752;</span>
+                <div class="setting-text">
+                  <h3>Background Location</h3>
+                  <p>Allow location "all the time" so tracking works with the screen off.</p>
+                </div>
+              </div>
+              <div class="perm-side">
+                <span class="perm-status" id="perm-status-backgroundLocation" aria-live="polite">Checking...</span>
+                <span class="perm-hint" aria-hidden="true">Tap to enable &rsaquo;</span>
+              </div>
+            </button>
+
+            <button class="setting-item perm-row" type="button" data-permission="notifications">
               <div class="setting-info">
                 <span class="setting-icon" aria-hidden="true">&#128276;</span>
                 <div class="setting-text">
@@ -164,11 +178,11 @@
                   <p>Get alerted when a peer asks for your location.</p>
                 </div>
               </div>
-              <label class="switch">
-                <input type="checkbox" data-permission="notifications" aria-label="Notification permission">
-                <span class="slider"></span>
-              </label>
-            </div>
+              <div class="perm-side">
+                <span class="perm-status" id="perm-status-notifications" aria-live="polite">Checking...</span>
+                <span class="perm-hint" aria-hidden="true">Tap to enable &rsaquo;</span>
+              </div>
+            </button>
           </div>
 
           <div class="section-title">FIELD PREFERENCES</div>

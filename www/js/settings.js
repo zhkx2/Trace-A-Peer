@@ -1,7 +1,7 @@
 // Wire the settings screen as soon as the DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
     loadSavedPreferences();
-    wirePermissionToggles();
+    wirePermissionRows();
     wireBatterySaverToggle();
     wireClearLogsButton();
 });
@@ -153,7 +153,7 @@ function requestNativePermissions() {
     });
 }
 
-// 2. Essential Permissions toggles reflect the real Android permission state
+// 2. Essential Permissions list shows the real Android permission state (Active / Inactive)
 function androidMajorVersion() {
     var match = /Android\s+(\d+)/i.exec(navigator.userAgent || '');
     return match ? parseInt(match[1], 10) : null;
@@ -190,10 +190,18 @@ function readPermissionStates() {
 }
 
 function renderPermissionStates(state) {
-    var toggles = document.querySelectorAll('input[data-permission]');
-    Array.prototype.forEach.call(toggles, function(toggle) {
-        toggle.disabled = !state;
-        toggle.checked = !!state && !!state[toggle.dataset.permission];
+    var rows = document.querySelectorAll('.perm-row[data-permission]');
+    Array.prototype.forEach.call(rows, function(row) {
+        var badge = row.querySelector('.perm-status');
+        if (!badge) {
+            return;
+        }
+        var known = !!state;
+        var granted = known && !!state[row.dataset.permission];
+        badge.textContent = known ? (granted ? 'Active' : 'Inactive') : 'Checking...';
+        badge.classList.toggle('active', known && granted);
+        badge.classList.toggle('inactive', known && !granted);
+        row.classList.toggle('is-inactive', known && !granted);
     });
 
     var banner = document.getElementById('permission-banner');
@@ -228,17 +236,16 @@ function refreshPermissionStates() {
     });
 }
 
-function wirePermissionToggles() {
-    var toggles = document.querySelectorAll('input[data-permission]');
-    Array.prototype.forEach.call(toggles, function(toggle) {
-        toggle.disabled = true; // enabled once real states are known
-        toggle.addEventListener('change', onPermissionToggle);
+function wirePermissionRows() {
+    var rows = document.querySelectorAll('.perm-row[data-permission]');
+    Array.prototype.forEach.call(rows, function(row) {
+        row.addEventListener('click', onPermissionRowTap);
     });
     renderPermissionStates(null);
 }
 
 function openAppSettingsFallback() {
-    window.alert('Open Android Settings > Apps > Trace-a-peer > Permissions to turn this permission off.');
+    window.alert('Open Android Settings > Apps > Trace-a-peer > Permissions to manage this permission.');
 }
 
 function openAppSettings() {
@@ -258,20 +265,18 @@ function openAppSettings() {
     }
 }
 
-// Android apps cannot revoke their own permissions, so route the user to system Settings.
-function confirmPermissionOff() {
-    var message = 'Android only lets you turn a permission off in system Settings. Open app settings now?';
+// Android apps cannot grant a permanently denied permission or revoke one, so route the user to system Settings.
+function promptOpenSettings(title, message) {
     var onChoice = function(choice) {
-        // Native confirm returns the 1-based button index; Cancel (2) or dismiss (0) keeps the permission.
+        // Native confirm returns the 1-based button index; Cancel (2) or dismiss (0) does nothing.
         if (choice === 1) {
             openAppSettings();
         }
-        refreshPermissionStates(); // always snap the toggle back to the real system state
     };
 
     try {
         if (navigator.notification && typeof navigator.notification.confirm === 'function') {
-            navigator.notification.confirm(message, onChoice, 'Turn off permission', ['Open Settings', 'Cancel']);
+            navigator.notification.confirm(message, onChoice, title, ['Open Settings', 'Cancel']);
             return;
         }
     } catch (error) {
@@ -281,37 +286,59 @@ function confirmPermissionOff() {
     if (window.confirm(message)) {
         openAppSettings();
     }
-    refreshPermissionStates();
 }
 
-function onPermissionToggle(event) {
-    var toggle = event.target;
-    var permissions = getPermissionsPlugin();
-    if (!permissions) {
-        return;
-    }
-
-    if (!toggle.checked) {
-        confirmPermissionOff();
-        return;
-    }
-
-    toggle.disabled = true;
-    var key = toggle.dataset.permission;
-    var request;
+function requestPermissionByKey(permissions, key) {
     if (key === 'location') {
-        request = requestFineLocation(permissions).then(function(granted) {
-            return granted ? requestBackgroundLocation(permissions) : false;
+        return requestFineLocation(permissions);
+    }
+    if (key === 'backgroundLocation') {
+        // Background location needs foreground location first.
+        return requestFineLocation(permissions).then(function() {
+            return requestBackgroundLocation(permissions);
         });
-    } else if (key === 'notifications') {
-        request = requestNotifications(permissions);
-    } else {
-        request = requestSms(permissions);
+    }
+    if (key === 'notifications') {
+        return requestNotifications(permissions);
+    }
+    return requestSms(permissions);
+}
+
+var permissionRequestBusy = false;
+
+function onPermissionRowTap(event) {
+    var row = event.currentTarget;
+    var key = row.dataset.permission;
+    var label = row.querySelector('h3') ? row.querySelector('h3').textContent : 'This permission';
+    var permissions = getPermissionsPlugin();
+    if (!permissions || permissionRequestBusy) {
+        return;
     }
 
-    request.then(function() {
+    var badge = row.querySelector('.perm-status');
+    if (badge && badge.classList.contains('active')) {
+        promptOpenSettings(label, label + ' is active. To revoke it, open app settings.');
+        return;
+    }
+
+    // Inactive: try the native prompt first, fall back to app settings if it still isn't granted.
+    permissionRequestBusy = true;
+    requestPermissionByKey(permissions, key).then(function() {
         announcePermissions();
-        return refreshPermissionStates();
+        return readPermissionStates();
+    }).then(function(state) {
+        renderPermissionStates(state);
+        if (state && !state[key]) {
+            promptOpenSettings(
+                label,
+                'Android did not grant this permission. Open app settings and allow it under Permissions?'
+            );
+        }
+    }).catch(function(error) {
+        console.error('Permission request failed.', error);
+        promptOpenSettings(label, 'Could not request this permission. Open app settings to allow it?');
+    }).then(function() {
+        permissionRequestBusy = false;
     });
 }
 
@@ -378,8 +405,8 @@ function saveSettings() {
         console.log('Interval successfully saved:', intervalSelect.value);
     }
 
-    // Save toggle switch states (permission toggles always mirror the OS, so they are skipped)
-    var toggles = document.querySelectorAll('.switch input[type="checkbox"]:not([data-permission]):not(#battery-saver-toggle)');
+    // Save toggle switch states
+    var toggles = document.querySelectorAll('.switch input[type="checkbox"]:not(#battery-saver-toggle)');
     toggles.forEach(function(toggle, index) {
         localStorage.setItem('setting_toggle_' + index, toggle.checked);
     });
@@ -406,7 +433,7 @@ function loadSavedPreferences() {
     }
 
     // Restore saved toggle switches
-    var toggles = document.querySelectorAll('.switch input[type="checkbox"]:not([data-permission]):not(#battery-saver-toggle)');
+    var toggles = document.querySelectorAll('.switch input[type="checkbox"]:not(#battery-saver-toggle)');
     toggles.forEach(function(toggle, index) {
         var savedState = localStorage.getItem('setting_toggle_' + index);
         if (savedState !== null) {
